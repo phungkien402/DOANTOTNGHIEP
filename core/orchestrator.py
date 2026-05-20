@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from openai import OpenAI, APIConnectionError
 
 from config import VLLM_BASE_URL, VLLM_MODEL
+from core.knowledge_store import list_topics
 
 # Module-level client — same pattern as query_rewriter.py
 _client = OpenAI(base_url=f"{VLLM_BASE_URL}/v1", api_key="not-needed")
@@ -43,6 +44,10 @@ CÂU HỎI HIỆN TẠI: {query}
 ---
 3 ĐOẠN FAQ TÌM ĐƯỢC (theo thứ tự liên quan):
 {chunks}
+
+---
+CÁC FILE HƯỚNG DẪN NGHIỆP VỤ ĐANG CÓ:
+{knowledge_topics}
 
 ---
 HƯỚNG DẪN QUYẾT ĐỊNH:
@@ -75,10 +80,19 @@ CHỌN TOOL TÌM KIẾM (field "tool"):
 - Mặc định: "search_faq" khi không chắc chắn.
 
 ---
+CÔNG CỤ HỖ TRỢ NGỮ CẢNH NGHIỆP VỤ (field "knowledge_topic"):
+Khi nào dùng search_knowledge:
+1. Trước tiên, đọc fast_chunks đã truy xuất được.
+2. Nếu fast_chunks đã giải thích được nguyên nhân gốc (root cause) của vấn đề → KHÔNG cần gọi search_knowledge, để knowledge_topic = "".
+3. Chỉ đặt knowledge_topic khi fast_chunks cho thấy vấn đề thuộc một lĩnh vực nghiệp vụ cụ thể (in ấn, mạng, thuốc, xuất viện...) VÀ người dùng cần hướng dẫn thao tác chi tiết hơn những gì chunks cung cấp.
+4. Nếu chưa chắc chắn topic nào phù hợp → để knowledge_topic = "".
+
+---
 TRẢ LỜI THEO ĐỊNH DẠNG JSON (không giải thích thêm):
 {{
   "action": "answer" | "clarify" | "ticket",
   "tool": "search_faq" | "search_manual",
+  "knowledge_topic": "" | "<stem từ danh sách trên>",
   "reasoning": "lý do ngắn gọn",
   "search_query": "...",
   "clarify_message": "..."
@@ -110,6 +124,17 @@ def _format_history(session_history: list) -> str:
     return "\n".join(lines)
 
 
+def _format_knowledge_topics() -> str:
+    """Format available knowledge topics for the orchestrator prompt."""
+    topics = list_topics()
+    if not topics:
+        return "(không có file hướng dẫn nào)"
+    lines = []
+    for t in topics:
+        lines.append(f"- {t['stem']}: {t['title']} — bao gồm: {t['covers']}")
+    return "\n".join(lines)
+
+
 def orchestrate(query: str, fast_chunks: list, session_history: list = None) -> dict:
     """
     Call the LLM to decide the next action.
@@ -121,6 +146,7 @@ def orchestrate(query: str, fast_chunks: list, session_history: list = None) -> 
         query=query,
         chunks=_format_chunks(fast_chunks),
         history=_format_history(session_history or []),
+        knowledge_topics=_format_knowledge_topics(),
     )
 
     print(f"[ORCHESTRATOR] Query: \"{query}\"")
@@ -175,7 +201,8 @@ def _parse_response(raw: str, query: str) -> dict:
         result.setdefault("clarify_message", "")
         result.setdefault("reasoning", "")
         result.setdefault("tool", "search_faq")
-        print(f"[ORCHESTRATOR] Action={action} | tool={result['tool']} | reasoning=\"{result['reasoning'][:80]}\"")
+        result.setdefault("knowledge_topic", "")
+        print(f"[ORCHESTRATOR] Action={action} | tool={result['tool']} | knowledge_topic={result['knowledge_topic']} | reasoning=\"{result['reasoning'][:80]}\"")
         return result
     except Exception as e:
         print(f"[ORCHESTRATOR] Parse error: {e} → fallback to answer")
@@ -190,6 +217,7 @@ def _fallback_result(query: str) -> dict:
         "search_query": query,
         "clarify_message": "",
         "tool": "search_faq",
+        "knowledge_topic": "",
     }
 
 

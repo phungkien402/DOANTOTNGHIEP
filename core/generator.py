@@ -47,8 +47,8 @@ SYSTEM_PROMPT = (
 )
 
 
-def _build_user_prompt(query: str, chunks: list[RetrievedChunk], history: list[dict] = None, user_intent: str = None) -> str:
-    """Build the user prompt with context chunks, conversation history, intent, and question."""
+def _build_user_prompt(query: str, chunks: list[RetrievedChunk], history: list[dict] = None, user_intent: str = None, knowledge_context: str = None) -> str:
+    """Build the user prompt with context chunks, knowledge content, conversation history, intent, and question."""
     parts = []
 
     # Inject user intent at the top if available
@@ -62,6 +62,10 @@ def _build_user_prompt(query: str, chunks: list[RetrievedChunk], history: list[d
 
     context = "\n\n---\n\n".join(context_parts)
     parts.append(f"CONTEXT:\n{context}")
+
+    # Inject knowledge content as supplementary operational guidance
+    if knowledge_context:
+        parts.append(f"\n---\n\n[OPERATIONAL GUIDANCE]\n{knowledge_context}")
 
     # Add last 2 turns of history if available
     if history:
@@ -87,17 +91,20 @@ class LLMUnavailableError(GeneratorError):
     pass
 
 
-def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = None, user_intent: str = None) -> str:
+def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = None, user_intent: str = None, knowledge_context: str = None) -> str:
     """
     Generate an answer grounded in the provided chunks.
+    Optionally includes knowledge_context from data/knowledge/ files.
     Returns the answer text string.
     Raises GeneratorError if vLLM is unavailable.
     """
     print(f"[GENERATOR] Context chunks: {len(chunks)}")
     if user_intent:
         print(f"[GENERATOR] User intent: \"{user_intent}\"")
+    if knowledge_context:
+        print(f"[GENERATOR] Knowledge context: {len(knowledge_context)} chars")
 
-    user_prompt = _build_user_prompt(query, chunks, history, user_intent=user_intent)
+    user_prompt = _build_user_prompt(query, chunks, history, user_intent=user_intent, knowledge_context=knowledge_context)
     print(f"[GENERATOR] Prompt length: ~{len(user_prompt)} chars")
 
     try:

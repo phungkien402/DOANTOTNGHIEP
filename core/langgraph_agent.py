@@ -28,9 +28,14 @@ from config import CONFIDENCE_THRESHOLD, MAINTENANCE_MODE, RETRIEVER_TOP_K, RERA
 from core.models import Message, Answer, RetrievedChunk
 from core.intent_guard import classify, chat_fallback
 from core.tools.create_ticket import save_ticket
+from core.tools.search_knowledge import search_knowledge
+from core.knowledge_store import rebuild_index
 from core import generator, confidence, retriever, reranker
 from core.abbreviations import expand_abbreviations
 from core.langfuse_tracer import new_trace, log_span, end_trace
+
+# Rebuild knowledge index at startup so _index.json is always fresh
+rebuild_index()
 
 
 # --- Session manager injection (set from api/routes.py to avoid circular imports) ---
@@ -62,6 +67,8 @@ class AgentState(TypedDict):
     session_history: list         # conversation history
     session_id: str               # needed for session tracking
     tool: str                     # "search_faq" | "search_manual"
+    knowledge_topic: str          # stem of knowledge file to load (or "")
+    knowledge_content: str        # loaded knowledge file body (or "")
     lf_trace: Any                 # Langfuse trace object (or None)
 
 
@@ -227,15 +234,19 @@ def node_orchestrator(state: AgentState) -> dict:
             "rewritten_query": search_query,
             "tool_called": "full_retriever",
             "tool": result.get("tool", "search_faq"),
+            "knowledge_topic": result.get("knowledge_topic", ""),
         }
 
 
 def node_full_retriever(state: AgentState) -> dict:
-    """Full retrieve (top K) + rerank (top N) using the orchestrator's search_query."""
+    """Full retrieve (top K) + rerank (top N) using the orchestrator's search_query.
+    Also loads knowledge content if knowledge_topic was set by orchestrator.
+    """
     rewritten = state.get("rewritten_query", state["query"])
     tool = state.get("tool", "search_faq")
+    knowledge_topic = state.get("knowledge_topic", "")
     lf_trace = state.get("lf_trace")
-    print(f"[AGENT] Node: FullRetriever | tool={tool} | query=\"{rewritten}\"")
+    print(f"[AGENT] Node: FullRetriever | tool={tool} | knowledge_topic={knowledge_topic} | query=\"{rewritten}\"")
 
     t_ret_start = time.time()
     if tool == "search_manual":
@@ -245,20 +256,29 @@ def node_full_retriever(state: AgentState) -> dict:
         chunks = retriever.retrieve(rewritten, top_k=RETRIEVER_TOP_K)
         if not chunks:
             print(f"[AGENT] Node: FullRetriever | no chunks retrieved")
-            return {"chunks": [], "confidence": 0.0}
+            return {"chunks": [], "confidence": 0.0, "knowledge_content": ""}
         ranked_chunks = reranker.rerank(rewritten, chunks, top_n=RERANKER_TOP_N)
         top_score = ranked_chunks[0].score if ranked_chunks else 0.0
+
+    # Load knowledge content if orchestrator requested it
+    knowledge_content = ""
+    if knowledge_topic:
+        knowledge_content = search_knowledge(knowledge_topic)
+        if knowledge_content.startswith("[Knowledge file"):
+            # File not found — log and continue without it
+            print(f"[AGENT] Node: FullRetriever | knowledge topic '{knowledge_topic}' not found, skipping")
+            knowledge_content = ""
 
     log_span(
         lf_trace,
         "FullRetriever",
-        input_data={"query": rewritten, "tool": tool},
-        output_data={"chunks": len(ranked_chunks), "top_score": round(top_score, 4)},
+        input_data={"query": rewritten, "tool": tool, "knowledge_topic": knowledge_topic},
+        output_data={"chunks": len(ranked_chunks), "top_score": round(top_score, 4), "has_knowledge": bool(knowledge_content)},
         start_time=t_ret_start,
     )
 
-    print(f"[AGENT] Node: FullRetriever | tool={tool} | top_score={top_score:.4f}")
-    return {"chunks": ranked_chunks, "confidence": top_score}
+    print(f"[AGENT] Node: FullRetriever | tool={tool} | top_score={top_score:.4f} | knowledge={'yes' if knowledge_content else 'no'}")
+    return {"chunks": ranked_chunks, "confidence": top_score, "knowledge_content": knowledge_content}
 
 
 def node_synthesizer(state: AgentState) -> dict:
@@ -277,18 +297,20 @@ def node_synthesizer(state: AgentState) -> dict:
 
 
 def node_generator(state: AgentState) -> dict:
-    """Generate a grounded answer from retrieved chunks."""
+    """Generate a grounded answer from retrieved chunks + optional knowledge content."""
     rewritten = state["rewritten_query"]
     chunks = state["chunks"]
     session_history = state.get("session_history", [])
+    knowledge_content = state.get("knowledge_content", "")
     lf_trace = state.get("lf_trace")
 
-    print(f"[AGENT] Node: Generator | chunks={len(chunks)}")
+    print(f"[AGENT] Node: Generator | chunks={len(chunks)} | knowledge={'yes' if knowledge_content else 'no'}")
 
     t_gen_start = time.time()
     try:
         answer_text = generator.generate(
-            rewritten, chunks, session_history
+            rewritten, chunks, session_history,
+            knowledge_context=knowledge_content,
         )
     except Exception as e:
         print(f"[AGENT] Generator failed: {e}")
@@ -443,6 +465,8 @@ def run(message: Message, session_history: list) -> Answer:
         "session_history": session_history,
         "session_id": message.session_id,
         "tool": "search_faq",
+        "knowledge_topic": "",
+        "knowledge_content": "",
         "lf_trace": lf_trace,
     }
 

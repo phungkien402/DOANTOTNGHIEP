@@ -1,0 +1,20 @@
+[
+  {
+    "stem": "medications",
+    "filename": "medications.md",
+    "title": "Hướng dẫn nghiệp vụ thuốc và kê đơn",
+    "covers": "kê đơn, toa thuốc, cấp phát thuốc, y lệnh thuốc, dược, lĩnh thuốc, in toa"
+  },
+  {
+    "stem": "network",
+    "filename": "network.md",
+    "title": "Hướng dẫn xử lý sự cố mạng và kết nối",
+    "covers": "mất mạng, không vào được hệ thống, kết nối chậm, VPN, không truy cập, lỗi kết nối, Lỗi E3, lỗi không thể đăng nhập"
+  },
+  {
+    "stem": "printing",
+    "filename": "printing.md",
+    "title": "Hướng dẫn xử lý sự cố in ấn",
+    "covers": "in bảng kê, in toa thuốc, in phiếu xét nghiệm, máy in, cổng in, driver, không in được do bị trắng màn hình"
+  }
+]
