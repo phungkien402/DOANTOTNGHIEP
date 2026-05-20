@@ -94,9 +94,10 @@ def run(message: Message, session_history: list) -> Answer:
     print(f"\n[PIPELINE] Step 2: Analyze + Rewrite (single call)")
     try:
         if fast_chunks:
-            user_intent, rewritten = analyze_and_rewrite(message.text, chunks=fast_chunks)
+            user_intent, rewritten, answerable = analyze_and_rewrite(message.text, chunks=fast_chunks)
+
         else:
-            user_intent, rewritten = analyze_and_rewrite(message.text)
+            user_intent, rewritten, answerable = analyze_and_rewrite(message.text)
     except LLMUnavailableError:
         print("[PIPELINE] vLLM unavailable during analyze+rewrite → LLM unavailable response")
         return Answer(
