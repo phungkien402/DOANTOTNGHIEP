@@ -15,13 +15,15 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from FlagEmbedding import FlagReranker
+from sentence_transformers import CrossEncoder
 
 from config import RERANKER_MODEL, RERANKER_TOP_N, CONFIDENCE_THRESHOLD
 from core.models import RetrievedChunk
 
 # Module-level singleton — loaded once when module is first imported
 print(f"[RERANKER] Loading model: {RERANKER_MODEL}")
-_reranker = FlagReranker(RERANKER_MODEL, use_fp16=False, device='cpu')
+from sentence_transformers import CrossEncoder
+_reranker = CrossEncoder(RERANKER_MODEL, device='cpu')
 
 
 def rerank(query: str, chunks: list[RetrievedChunk], top_n: int = None) -> list[RetrievedChunk]:
@@ -42,7 +44,7 @@ def rerank(query: str, chunks: list[RetrievedChunk], top_n: int = None) -> list[
     pairs = [[query, chunk.text] for chunk in chunks]
 
     # Compute reranker scores
-    scores = _reranker.compute_score(pairs, normalize=True)
+    scores = _reranker.predict([(query, chunk.text) for chunk in chunks])
 
     # Handle single result (returns float instead of list)
     if isinstance(scores, float):

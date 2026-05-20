@@ -15,7 +15,7 @@ python-multipart==0.0.26
 httpx==0.28.1
 
 # Slack
-slack-sdk==3.41.0
+# slack-sdk==3.41.0
 
 # Utilities
 python-dotenv==1.0.1
@@ -24,5 +24,5 @@ loguru==0.7.3
 openai==2.36.0
 
 # Monitoring
-psutil>=5.9.0
-pynvml>=11.5.0
+psutil==7.2.2
+pynvml==13.0.1

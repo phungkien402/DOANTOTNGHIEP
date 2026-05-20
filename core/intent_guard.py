@@ -6,6 +6,7 @@ Intent guard:
 Uses the same synchronous OpenAI client pattern as the rest of the codebase.
 """
 
+import json
 import sys
 import time
 from pathlib import Path
@@ -16,22 +17,44 @@ from openai import OpenAI, APIConnectionError
 
 from config import VLLM_BASE_URL, VLLM_MODEL
 
+
+def _load_terminology() -> str:
+    """Load terminology from data/terminology.json and format for prompt injection.
+
+    Returns empty string if file not found — classify prompt still works without it.
+    """
+    term_path = Path(__file__).parent.parent / "data" / "terminology.json"
+    if not term_path.exists():
+        return ""
+    try:
+        with open(term_path, encoding="utf-8") as f:
+            data = json.load(f)
+        lines = []
+        for section in data.values():
+            label = section["label"]
+            terms = ", ".join(section["terms"])
+            lines.append(f"- {label}: {terms}")
+        return "\n".join(lines)
+    except Exception:
+        return ""
+
+
+_TERMINOLOGY = _load_terminology()
+
 # Module-level client — same pattern as generator.py / query_rewriter.py
 _client = OpenAI(base_url=f"{VLLM_BASE_URL}/v1", api_key="not-needed")
 
 CLASSIFY_PROMPT = """Bạn là bộ phân loại câu hỏi hỗ trợ phần mềm quản lý bệnh viện EHC (Ehealthcare Vietnam).
-
 Phần mềm EHC là hệ thống HIS/EMR dùng tại các bệnh viện Việt Nam, bao gồm các phân hệ:
 Đón tiếp, Khám bệnh, Điều trị nội trú, Dược/Kho thuốc, Xét nghiệm, Chẩn đoán hình ảnh (CĐHA/PACS/MiniPACS), Phẫu thuật thủ thuật, Thanh toán/Viện phí/BHYT, Hành chính bệnh nhân, Báo cáo thống kê, Danh mục hệ thống.
-
 Người dùng là nhân viên bệnh viện: bác sĩ, điều dưỡng, dược sĩ, nhân viên đón tiếp, thu ngân, kỹ thuật viên xét nghiệm, nhân viên CĐHA, quản trị viên.
 
+Thuật ngữ và cách diễn đạt thường gặp trong môi trường bệnh viện và phần mềm HIS:
+{terminology}
+
 Câu hỏi liên quan (YES) thường về: thao tác nghiệp vụ bệnh viện, quy trình khám chữa bệnh, lỗi phần mềm, hướng dẫn sử dụng tính năng, quản lý bệnh nhân, thuốc, viện phí, báo cáo, cấu hình hệ thống.
-
 Câu hỏi KHÔNG liên quan (NO): chỉ khi là chào hỏi xã giao thuần túy (hello, xin chào, cảm ơn) hoặc hoàn toàn không liên quan đến bệnh viện/phần mềm.
-
 Khi không chắc chắn, hãy trả lời YES.
-
 Trả lời CHỈ bằng một từ: YES hoặc NO.
 Câu hỏi: "{query}"
 """
@@ -47,9 +70,10 @@ _FALLBACK_RESPONSE = "Xin chào! Mình là trợ lý hỗ trợ phần mềm EHC
 def classify(query: str) -> bool:
     """Return True if query is off-topic (not EHC-related)."""
     try:
+        prompt = CLASSIFY_PROMPT.format(terminology=_TERMINOLOGY, query=query.strip())
         response = _client.chat.completions.create(
             model=VLLM_MODEL,
-            messages=[{"role": "user", "content": CLASSIFY_PROMPT.format(query=query.strip())}],
+            messages=[{"role": "user", "content": prompt}],
             max_tokens=5,
             temperature=0.0,
         )
@@ -62,9 +86,10 @@ def classify(query: str) -> bool:
         print("[INTENT_GUARD] Classifier connection error, retrying in 1s...")
         time.sleep(1)
         try:
+            prompt = CLASSIFY_PROMPT.format(terminology=_TERMINOLOGY, query=query.strip())
             response = _client.chat.completions.create(
                 model=VLLM_MODEL,
-                messages=[{"role": "user", "content": CLASSIFY_PROMPT.format(query=query.strip())}],
+                messages=[{"role": "user", "content": prompt}],
                 max_tokens=5,
                 temperature=0.0,
             )

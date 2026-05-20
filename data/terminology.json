@@ -1,0 +1,50 @@
+{
+  "clinical": {
+    "label": "Lâm sàng / nghiệp vụ y tế",
+    "terms": [
+      "chỉ định", "y lệnh", "bệnh án", "xử trí", "chẩn đoán", "điều trị",
+      "kê đơn", "toa thuốc", "phác đồ", "hội chẩn", "phẫu thuật", "thủ thuật",
+      "xét nghiệm", "siêu âm", "X-quang", "nội soi", "bệnh phẩm",
+      "vào viện", "ra viện", "xuất viện", "chuyển khoa", "chuyển viện",
+      "nhập viện", "đón tiếp", "tiếp nhận", "đăng ký khám", "khám bệnh",
+      "bệnh nhân", "người bệnh", "người giám hộ", "thân nhân",
+      "viện phí", "BHYT", "bảo hiểm y tế", "thanh toán", "thu ngân",
+      "dược", "thuốc", "kho thuốc", "cấp phát thuốc", "lĩnh thuốc",
+      "điều dưỡng", "bác sĩ", "dược sĩ", "kỹ thuật viên"
+    ]
+  },
+  "his_modules": {
+    "label": "Phân hệ / module HIS",
+    "terms": [
+      "module", "phân hệ", "màn hình", "form", "giao diện",
+      "nội trú", "ngoại trú", "cấp cứu", "phòng khám",
+      "CĐHA", "PACS", "MiniPACS", "RIS", "LIS",
+      "khoa dược", "kho", "nhà thuốc",
+      "hành chính", "danh mục", "cấu hình", "hệ thống",
+      "báo cáo", "thống kê", "in ấn", "bảng kê",
+      "viện phí", "bảo hiểm", "BHYT", "giảm trừ",
+      "phẫu thuật", "gây mê", "hồi sức"
+    ]
+  },
+  "actions": {
+    "label": "Thao tác người dùng",
+    "terms": [
+      "lưu", "xác nhận", "duyệt", "hủy", "xóa", "sửa", "thêm",
+      "tìm kiếm", "tra cứu", "tìm", "lọc",
+      "in", "xuất", "export", "import",
+      "đăng nhập", "đăng xuất", "mở", "đóng", "chuyển",
+      "cập nhật", "đồng bộ", "kết nối", "tải lại"
+    ]
+  },
+  "error_descriptions": {
+    "label": "Mô tả lỗi thông tục",
+    "terms": [
+      "xoay", "quay", "loading", "chờ mãi", "treo", "đứng",
+      "mất", "biến mất", "không thấy", "không hiện", "không ra",
+      "không được", "không lưu", "không in", "không tìm",
+      "lỗi", "báo lỗi", "thông báo đỏ", "crash", "văng",
+      "chậm", "lag", "đơ", "tắt đột ngột",
+      "không vào được", "không mở được", "bị khóa", "không truy cập"
+    ]
+  }
+}
