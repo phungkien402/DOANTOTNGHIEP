@@ -30,8 +30,9 @@ SYSTEM_PROMPT = (
     "1. Chỉ dùng thông tin có trong CONTEXT. Không thêm gì từ bên ngoài.\n"
     "2. CONTEXT có thể chứa đường dẫn ngắn hoặc hướng dẫn tóm tắt — hãy diễn giải "
     "thành lời hướng dẫn tự nhiên, dễ hiểu. "
-    "Chỉ nói \"Mình chưa tìm thấy hướng dẫn cho vấn đề này.\" nếu CONTEXT hoàn toàn "
-    "không liên quan đến câu hỏi.\n"
+    "KHÔNG BAO GIỜ nói \"Mình chưa tìm thấy hướng dẫn cho vấn đề này.\" khi [PRIMARY REFERENCE] "
+    "có nội dung liên quan đến câu hỏi. "
+    "Chỉ dùng câu đó khi TẤT CẢ chunks trong CONTEXT đều hoàn toàn không liên quan.\n"
     "3. Nếu hướng dẫn có nhiều bước (3+), dùng danh sách đánh số. "
     "Nếu chỉ 1-2 bước, viết thành câu tự nhiên, không cần đánh số.\n"
     "4. Trả lời bằng tiếng Việt, xưng \"mình\" hoặc không xưng, gọi người hỏi là \"bạn\".\n"
@@ -45,6 +46,15 @@ SYSTEM_PROMPT = (
     "8. Kết thúc bằng: \"Nếu vẫn gặp khó khăn, bạn có thể liên hệ thêm nhé!\"\n"
     "9. Không hỏi lại trừ khi câu hỏi thực sự mơ hồ."
 )
+
+
+def _is_clarify_turn(turn: dict) -> bool:
+    """True if this is a clarify bot turn (has numbered options like 1. / 2.) — filter before injecting into LLM prompt."""
+    if turn.get("role") != "bot":
+        return False
+    text = turn.get("text", "")
+    count = sum(1 for i in range(1, 5) if f"{i}." in text or f"{i})" in text)
+    return count >= 2
 
 
 def _build_user_prompt(query: str, chunks: list[RetrievedChunk], history: list[dict] = None, user_intent: str = None, knowledge_context: str = None) -> str:
@@ -67,14 +77,17 @@ def _build_user_prompt(query: str, chunks: list[RetrievedChunk], history: list[d
     if knowledge_context:
         parts.append(f"\n---\n\n[OPERATIONAL GUIDANCE]\n{knowledge_context}")
 
-    # Add last 2 turns of history if available
+    # Add last 2 turns of history if available — filter clarify bot turns
     if history:
         recent = history[-4:]  # last 2 turns = 4 entries (user+bot x2)
-        history_lines = []
-        for turn in recent:
-            role = "User" if turn["role"] == "user" else "Assistant"
-            history_lines.append(f"{role}: {turn['text']}")
-        parts.append("\nCONVERSATION HISTORY (for context only):\n" + "\n".join(history_lines))
+        # Filter out clarify bot turns: they have numbered options and make LLM think bot couldn't answer
+        filtered = [t for t in recent if not _is_clarify_turn(t)]
+        if filtered:
+            history_lines = []
+            for turn in filtered:
+                role = "User" if turn["role"] == "user" else "Assistant"
+                history_lines.append(f"{role}: {turn['text']}")
+            parts.append("\nCONVERSATION HISTORY (for context only):\n" + "\n".join(history_lines))
 
     parts.append(f"\n---\n\nQUESTION: {query}\n\nNote: Answer based primarily on the [PRIMARY REFERENCE] above.")
 
