@@ -1,3 +1,32 @@
+# FIX: Telegram session persistence + clarify follow-up handling
+
+## Root cause (confirmed from source code)
+
+### Problem 1 — History never saved (routes.py)
+`api/routes.py` lines 141-152: Telegram returns `{"ok": True}` immediately.
+`_session_mgr.add_turn()` at lines 160-161 is **never reached** for Telegram.
+Every job receives `history=[]`.
+
+### Problem 2 — `_session_mgr` is None in worker process
+`set_session_manager()` is only called from `api/routes.py` (FastAPI process).
+RQ worker is a separate process → `_session_mgr = None` in `langgraph_agent.py`.
+Consequence:
+- Line 111: `is_awaiting_clarification` bypass **never runs**
+- Line 166: `get_fast_chunks()` **never restores** original chunks
+
+### Problem 3 — Follow-up query causes wrong retrieval
+Follow-up "mình cần cách hướng dẫn ấy" → FastRetriever retrieves "hướng dẫn sử dụng thuốc"
+→ Orchestrator sees irrelevant chunks + vague query → clarifies again despite history.
+
+**History dict format** (from `api/session.py` line 44): `{"role": "user"|"bot", "text": "..."}`
+
+---
+
+## Fix — pipeline_worker.py (complete replacement)
+
+Full replacement for `~/DOANTN/workers/pipeline_worker.py`:
+
+```python
 """
 pipeline_worker.py — RQ worker that processes queued Telegram queries.
 Runs the LangGraph agent and sends the reply back via Telegram Bot API.
@@ -200,3 +229,78 @@ def _send_telegram(chat_id: str, text: str):
             print(f"[WORKER] Telegram send failed: {resp.status_code} {resp.text[:100]}")
     except Exception as e:
         print(f"[WORKER] Telegram send error: {e}")
+```
+
+---
+
+## Fix — telegram_adapter.py (/clear must also wipe Redis)
+
+In `~/DOANTN/adapters/telegram_adapter.py`, find the `/clear` handler (~line 65):
+
+```python
+if text.strip() == "/clear":
+    session_id = f"tg_{chat_id}"
+    if _session_mgr:
+        _session_mgr.clear(session_id)
+        print(f"[TELEGRAM] /clear: session {session_id} cleared")
+    # Also wipe Redis session used by pipeline_worker
+    try:
+        import os
+        from redis import Redis as _Redis
+        _r = _Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+        _r.delete(f"tg_sess:{session_id}")
+        print(f"[TELEGRAM] /clear: Redis session deleted")
+    except Exception as _e:
+        print(f"[TELEGRAM] /clear: Redis delete failed: {_e}")
+    self._send_clear_reply(chat_id)
+    return None
+```
+
+---
+
+## Steps
+
+```bash
+# Apply changes
+nano ~/DOANTN/workers/pipeline_worker.py
+nano ~/DOANTN/adapters/telegram_adapter.py
+
+# Restart worker
+sudo systemctl restart ehc-worker
+
+# Test flow
+# 1. Send: "làm sao để thêm vân tay cho bệnh nhân"  → bot clarifies
+# 2. Send: "mình cần cách hướng dẫn ấy"             → bot should answer about vân tay
+```
+
+Expected logs on turn 2:
+```
+[WORKER] Session | id=tg_5770498222 | turns=1 | awaiting=True
+[WORKER] Enriched query: "làm sao để thêm vân tay cho bệnh nhân — mình cần cách hướng dẫn ấy"
+[AGENT] Node: QueryAnalyzer | BYPASS (awaiting_clarification=True)
+[AGENT] Node: FastRetriever | query="làm sao để thêm vân tay cho bệnh nhân — mình cần cách hướng dẫn ấy"
+[RETRIEVER] #1 score=0.6xx [faq] | <vân tay related chunk>
+[ORCHESTRATOR] Action=answer ...
+[WORKER] Done | chat_id=... | conf=0.8xxx
+```
+
+---
+
+## How it works
+
+```
+Turn 1: "làm sao để thêm vân tay cho bệnh nhân"
+  → awaiting=False → query unchanged
+  → Orchestrator: clarify
+  → shim.set_awaiting_clarification(True) ← called by node_orchestrator
+  → save: {history:[...], awaiting=True, original_query="làm sao...vân tay..."}
+
+Turn 2: "mình cần cách hướng dẫn ấy"
+  → awaiting=True, original_query loaded from Redis
+  → effective_text = "làm sao để thêm vân tay... — mình cần cách hướng dẫn ấy"
+  → shim.is_awaiting_clarification() → True → QueryAnalyzer BYPASS classifier
+  → FastRetriever retrieves with enriched query → gets vân tay chunks ✓
+  → Orchestrator: sees history (already clarified) + relevant chunks → action=answer ✓
+  → shim.set_awaiting_clarification(False)
+  → save: {history:[...], awaiting=False, original_query=""}
+```
