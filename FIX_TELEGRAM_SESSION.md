@@ -1,3 +1,30 @@
+# FIX: Telegram session persistence
+
+## Root cause (confirmed from source)
+
+`api/routes.py` lines 141-152: Telegram returns `{"ok": True}` immediately after enqueue.
+The `_session_mgr.add_turn()` calls at lines 160-161 are **never reached** for Telegram.
+Every job receives `history=[]` because the in-memory SessionManager is never updated.
+
+`pipeline_worker.py` uses the passed `history` directly:
+```python
+answer = run(msg, history)   # history is always []
+```
+
+Session history format (from `api/session.py` line 44):
+```python
+{"role": "user", "text": "..."}   # role = "user" or "bot"
+```
+
+---
+
+## Fix 1 — pipeline_worker.py (main fix)
+
+Add Redis session load/save. Worker is the source of truth for Telegram sessions.
+
+Full replacement for `~/DOANTN/workers/pipeline_worker.py`:
+
+```python
 """
 pipeline_worker.py — RQ worker that processes queued Telegram queries.
 Runs the LangGraph agent and sends the reply back via Telegram Bot API.
@@ -118,3 +145,83 @@ def _send_telegram(chat_id: str, text: str):
             print(f"[WORKER] Telegram send failed: {resp.status_code} {resp.text[:100]}")
     except Exception as e:
         print(f"[WORKER] Telegram send error: {e}")
+```
+
+---
+
+## Fix 2 — telegram_adapter.py (/clear must also clear Redis)
+
+In `~/DOANTN/adapters/telegram_adapter.py`, find the `/clear` handler (around line 65):
+
+**Before:**
+```python
+if text.strip() == "/clear":
+    session_id = f"tg_{chat_id}"
+    if _session_mgr:
+        _session_mgr.clear(session_id)
+        print(f"[TELEGRAM] /clear: session {session_id} cleared")
+    self._send_clear_reply(chat_id)
+    return None
+```
+
+**After:**
+```python
+if text.strip() == "/clear":
+    session_id = f"tg_{chat_id}"
+    if _session_mgr:
+        _session_mgr.clear(session_id)
+        print(f"[TELEGRAM] /clear: session {session_id} cleared")
+    # Also clear Redis session (used by pipeline_worker)
+    try:
+        import os
+        from redis import Redis as _Redis
+        _r = _Redis.from_url(os.getenv("REDIS_URL", "redis://localhost:6379"))
+        _r.delete(f"tg_sess:{session_id}")
+        print(f"[TELEGRAM] /clear: Redis session {session_id} deleted")
+    except Exception as _e:
+        print(f"[TELEGRAM] /clear: Redis delete failed: {_e}")
+    self._send_clear_reply(chat_id)
+    return None
+```
+
+---
+
+## Steps
+
+```bash
+# 1. Apply changes
+nano ~/DOANTN/workers/pipeline_worker.py
+nano ~/DOANTN/adapters/telegram_adapter.py
+
+# 2. Restart worker
+sudo systemctl restart ehc-worker
+
+# 3. Test in Telegram:
+#    - Send: "làm sao để thêm vân tay cho bệnh nhân"
+#    - Bot trả lời clarify question
+#    - Reply: "Tôi muốn thêm trong module nhập viện"
+#    - Bot dùng context từ câu trước để trả lời đúng
+
+# 4. Check logs
+sudo journalctl -u ehc-worker -n 30
+```
+
+Expected logs:
+```
+[WORKER] Session | id=tg_5770498222 | turns=0
+[WORKER] Done | chat_id=5770498222 | conf=0.0000
+[WORKER] Session | id=tg_5770498222 | turns=1   ← second message has history!
+[WORKER] Done | chat_id=5770498222 | conf=0.8500
+```
+
+---
+
+## Note on clarify UX
+
+Even with session fixed, user replying "3" will still be rejected by intent guard.
+The `/clear` note at line 67-70 of `telegram_adapter.py` only clears in-memory session — this fix also handles Redis, so `/clear` now fully resets the conversation.
+
+Consider tweaking the Orchestrator clarify prompt to ask **one question** instead of numbered list:
+> "Bạn muốn thêm vân tay ở bước nào? (ví dụ: đăng ký khám, nhập viện, hay chỗ khác?)"
+
+That way user answers naturally with text, not a number.

@@ -68,6 +68,15 @@ class TelegramAdapter(BaseAdapter):
             if _session_mgr:
                 _session_mgr.clear(session_id)
                 print(f"[TELEGRAM] /clear: session {session_id} cleared")
+            # Also clear Redis session (used by pipeline_worker)
+            try:
+                import os as _os
+                from redis import Redis as _Redis
+                _r = _Redis.from_url(_os.getenv("REDIS_URL", "redis://localhost:6379"))
+                _r.delete(f"tg_sess:{session_id}")
+                print(f"[TELEGRAM] /clear: Redis session {session_id} deleted")
+            except Exception as _e:
+                print(f"[TELEGRAM] /clear: Redis delete failed: {_e}")
             self._send_clear_reply(chat_id)
             return None  # skip pipeline
 
