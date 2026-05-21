@@ -569,12 +569,17 @@ def run(message: Message, session_history: list) -> Answer:
     # Build Answer object
     chunks = result.get("chunks", [])
     conf = result.get("confidence", 0.0)
+
+    # Cast float32 → float for JSON serialization (RQ stores result in Redis)
+    for chunk in chunks:
+        chunk.score = float(chunk.score)
+
     is_fallback = result.get("intent") in ("chat_fallback", "create_ticket", "clarify")
     rewritten = result.get("rewritten_query", "")
 
     answer = Answer(
         text=result["answer"],
-        confidence=conf,
+        confidence=float(conf),
         source_chunks=chunks,
         is_fallback=is_fallback,
         rewritten_question=rewritten,
