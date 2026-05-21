@@ -570,6 +570,10 @@ def run(message: Message, session_history: list) -> Answer:
     chunks = result.get("chunks", [])
     conf = result.get("confidence", 0.0)
 
+    # Cast float32 → float for JSON serialization
+    for chunk in chunks:
+        chunk.score = float(chunk.score)
+
     # Cast float32 → float for JSON serialization (RQ stores result in Redis)
     for chunk in chunks:
         chunk.score = float(chunk.score)
