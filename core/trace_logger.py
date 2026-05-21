@@ -15,6 +15,20 @@ import threading
 from pathlib import Path
 from dataclasses import dataclass, field, asdict
 
+import numpy as np
+
+
+class _NumpySafeEncoder(json.JSONEncoder):
+    """Handle numpy types that slip through to json.dumps."""
+    def default(self, obj):
+        if isinstance(obj, np.floating):
+            return float(obj)
+        if isinstance(obj, np.integer):
+            return int(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+        return super().default(obj)
+
 TRACES_FILE = Path(__file__).parent.parent / "logs" / "traces.jsonl"
 TRACES_FILE.parent.mkdir(parents=True, exist_ok=True)
 
@@ -104,7 +118,7 @@ def finish_trace(trace_id: str, answer: str, is_fallback: bool = False) -> None:
     # Persist (without subscribers list)
     record = {k: v for k, v in _store[trace_id].items() if k != "subscribers"}
     with open(TRACES_FILE, "a", encoding="utf-8") as f:
-        f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        f.write(json.dumps(record, ensure_ascii=False, cls=_NumpySafeEncoder) + "\n")
 
     # Truncate file if too large
     _maybe_truncate()
