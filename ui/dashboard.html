@@ -218,6 +218,53 @@ tr:last-child td { border-bottom: none; }
   color: #94a3b8;
 }
 .tickets-summary strong { color: #e2e8f0; }
+
+/* Ops buttons */
+.ops-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 12px 0 16px;
+}
+.op-btn {
+  padding: 8px 16px;
+  background: #1e293b;
+  border: 1px solid #334155;
+  border-radius: 6px;
+  color: #e2e8f0;
+  cursor: pointer;
+  font-size: 13px;
+  transition: background .15s;
+}
+.op-btn:hover { background: #334155; }
+.op-btn:disabled { opacity: .4; cursor: not-allowed; }
+.op-btn--danger { border-color: #ef4444; color: #fca5a5; }
+.op-btn--danger:hover { background: #450a0a; }
+#ops-log-panel {
+  background: #0a0f1e;
+  border: 1px solid #1e3a5f;
+  border-radius: 6px;
+  margin-top: 12px;
+  overflow: hidden;
+}
+.ops-log-header {
+  padding: 8px 14px;
+  background: #0f172a;
+  border-bottom: 1px solid #1e293b;
+  font-size: 12px;
+  color: #64748b;
+}
+#ops-log-output {
+  padding: 12px 14px;
+  margin: 0;
+  max-height: 300px;
+  overflow-y: auto;
+  font-size: 12px;
+  font-family: monospace;
+  color: #86efac;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
 </style>
 </head>
 <body>
@@ -288,6 +335,51 @@ tr:last-child td { border-bottom: none; }
     </thead>
     <tbody></tbody>
   </table>
+
+  <!-- ── TÁC VỤ QUẢN TRỊ ── -->
+  <div class="section-title" style="margin-top:1.5rem">Tác vụ quản trị</div>
+  <div class="ops-grid">
+    <button class="op-btn" onclick="runOp('reindex')" id="btn-reindex">
+      ⟳ Reindex FAQ
+    </button>
+    <button class="op-btn" onclick="runOp('restart/doantn')" id="btn-doantn">
+      ↺ Restart doantn
+    </button>
+    <button class="op-btn" onclick="runOp('restart/ehc-worker')" id="btn-worker">
+      ↺ Restart ehc-worker
+    </button>
+    <button class="op-btn" onclick="reloadKnowledge()" id="btn-knowledge">
+      ⟳ Reload Knowledge
+    </button>
+    <button class="op-btn op-btn--danger" onclick="confirmVllm()" id="btn-vllm">
+      ⚠ Restart vLLM
+    </button>
+  </div>
+
+  <!-- Log panel (hidden until an op runs) -->
+  <div id="ops-log-panel" style="display:none">
+    <div class="ops-log-header">
+      <span id="ops-log-title">Log</span>
+      <button onclick="closeLogPanel()" style="float:right;background:none;border:none;color:#94a3b8;cursor:pointer">✕</button>
+    </div>
+    <pre id="ops-log-output"></pre>
+  </div>
+
+  <!-- Confirmation modal for vLLM -->
+  <div id="vllm-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.6);z-index:999;align-items:center;justify-content:center">
+    <div style="background:#1e293b;border:1px solid #334155;border-radius:8px;padding:24px;max-width:400px;width:90%">
+      <div style="color:#f59e0b;font-weight:600;margin-bottom:12px">⚠ Cảnh báo</div>
+      <p style="color:#cbd5e1;margin-bottom:20px">
+        ehc-vllm.service là dịch vụ <strong>dùng chung</strong> với các project khác trên server.
+        Restart sẽ làm gián đoạn toàn bộ LLM inference trong ~2 phút.
+        Bạn chắc chắn muốn tiếp tục?
+      </p>
+      <div style="display:flex;gap:12px;justify-content:flex-end">
+        <button onclick="closeVllmModal()" style="padding:8px 16px;background:#334155;border:none;border-radius:4px;color:#e2e8f0;cursor:pointer">Huỷ</button>
+        <button onclick="runOp('restart/ehc-vllm');closeVllmModal()" style="padding:8px 16px;background:#ef4444;border:none;border-radius:4px;color:white;cursor:pointer">Restart vLLM</button>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script>
@@ -499,6 +591,146 @@ function escapeHtml(str) {
 // --- Init ---
 fetchAll();
 setInterval(fetchAll, 30000);
+
+// --- Admin Ops ---
+const ADMIN_TOKEN = "__ADMIN_TOKEN__";
+let _currentJobSource = null;
+
+function setButtonsDisabled(disabled) {
+  document.querySelectorAll('.op-btn').forEach(b => b.disabled = disabled);
+}
+
+async function runOp(opPath) {
+  const opNames = {
+    'reindex': 'Reindex FAQ',
+    'restart/doantn': 'Restart doantn',
+    'restart/ehc-worker': 'Restart ehc-worker',
+    'restart/ehc-vllm': 'Restart vLLM',
+  };
+  const title = opNames[opPath] || opPath;
+
+  // Open log panel
+  document.getElementById('ops-log-panel').style.display = 'block';
+  document.getElementById('ops-log-title').textContent = title + ' — đang chạy...';
+  document.getElementById('ops-log-output').textContent = '';
+  setButtonsDisabled(true);
+
+  // POST to start job
+  let jobId;
+  try {
+    const res = await fetch(`/admin/ops/${opPath}`, {
+      method: 'POST',
+      headers: { 'X-Admin-Token': ADMIN_TOKEN }
+    });
+    const data = await res.json();
+    if (data.detail) throw new Error(data.detail);
+    if (data.error) throw new Error(data.error);
+    jobId = data.job_id;
+  } catch (e) {
+    appendLog('❌ Lỗi: ' + e.message);
+    setButtonsDisabled(false);
+    return;
+  }
+
+  if (opPath === 'restart/doantn') {
+    waitForRestart();
+    return;
+  }
+  
+  // SSE stream cho các op khác (reindex, restart worker, restart vllm)
+  // Stream log via SSE
+  if (_currentJobSource) _currentJobSource.close();
+  const es = new EventSource(`/admin/ops/stream/${jobId}`);
+  _currentJobSource = es;
+
+  es.onmessage = (e) => {
+    const event = JSON.parse(e.data);
+    if (event.type === 'log') {
+      appendLog(event.text);
+    } else if (event.type === 'done') {
+      es.close();
+      const ok = event.status === 'ok';
+      document.getElementById('ops-log-title').textContent =
+        title + (ok ? ' — ✅ hoàn tất' : ' — ❌ ' + event.status);
+      showToast(title + (ok ? ' hoàn tất' : ' thất bại: ' + event.status), ok ? 'ok' : 'error');
+      setButtonsDisabled(false);
+    }
+  };
+  es.onerror = () => {
+    es.close();
+    setButtonsDisabled(false);
+  };
+}
+
+async function waitForRestart() {
+  showToast('Đang restart...', 'info');
+  await new Promise(r => setTimeout(r, 2000)); // đợi service die
+  let attempts = 0;
+  while (attempts < 15) {
+    try {
+      const res = await fetch('/health');
+      if (res.ok) { showToast('✅ doantn đã restart xong', 'ok'); return; }
+    } catch(e) {}
+    await new Promise(r => setTimeout(r, 1000));
+    attempts++;
+  }
+  showToast('⚠ Không kết nối lại được sau 15s', 'error');
+}
+
+async function reloadKnowledge() {
+  setButtonsDisabled(true);
+  document.getElementById('ops-log-panel').style.display = 'block';
+  document.getElementById('ops-log-title').textContent = 'Reload Knowledge';
+  document.getElementById('ops-log-output').textContent = 'Đang rebuild _index.json...\n';
+  try {
+    const res = await fetch('/admin/ops/reload-knowledge', {
+      method: 'POST',
+      headers: { 'X-Admin-Token': ADMIN_TOKEN }
+    });
+    const data = await res.json();
+    appendLog(data.message || data.status);
+    const ok = data.status === 'ok';
+    document.getElementById('ops-log-title').textContent =
+      'Reload Knowledge' + (ok ? ' — ✅ hoàn tất' : ' — ❌ lỗi');
+    showToast('Knowledge index ' + (ok ? 'đã reload' : 'lỗi: ' + data.message), ok ? 'ok' : 'error');
+  } catch (e) {
+    appendLog('❌ ' + e.message);
+  }
+  setButtonsDisabled(false);
+}
+
+function appendLog(line) {
+  const el = document.getElementById('ops-log-output');
+  el.textContent += line + '\n';
+  el.scrollTop = el.scrollHeight;
+}
+
+function closeLogPanel() {
+  document.getElementById('ops-log-panel').style.display = 'none';
+  if (_currentJobSource) { _currentJobSource.close(); _currentJobSource = null; }
+}
+
+function confirmVllm() {
+  document.getElementById('vllm-modal').style.display = 'flex';
+}
+function closeVllmModal() {
+  document.getElementById('vllm-modal').style.display = 'none';
+}
+
+function showToast(msg, type) {
+  const toast = document.createElement('div');
+  toast.style.cssText = `
+    position:fixed;bottom:24px;right:24px;z-index:1000;
+    padding:12px 20px;border-radius:6px;font-size:13px;
+    background:${type === 'ok' ? '#14532d' : '#450a0a'};
+    color:${type === 'ok' ? '#86efac' : '#fca5a5'};
+    border:1px solid ${type === 'ok' ? '#166534' : '#7f1d1d'};
+    box-shadow:0 4px 12px rgba(0,0,0,.4);
+  `;
+  toast.textContent = msg;
+  document.body.appendChild(toast);
+  setTimeout(() => toast.remove(), 4000);
+}
 </script>
 </body>
 </html>

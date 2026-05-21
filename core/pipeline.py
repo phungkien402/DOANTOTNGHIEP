@@ -147,9 +147,13 @@ def run(message: Message, session_history: list) -> Answer:
         print("[PIPELINE] Generator failed (vLLM unavailable) → fallback")
         return fallback.handle(message, session_history)
 
+    # Cast float32 → float for JSON serialization (RQ job result)
+    for chunk in ranked_chunks:
+        chunk.score = float(chunk.score)
+
     answer = Answer(
         text=answer_text,
-        confidence=ranked_chunks[0].score,
+        confidence=float(ranked_chunks[0].score),
         source_chunks=ranked_chunks,
         is_fallback=False,
         rewritten_question=rewritten,

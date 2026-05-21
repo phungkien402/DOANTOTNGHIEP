@@ -29,6 +29,7 @@ from core.models import Message
 from core.langgraph_agent import run as run_pipeline, set_maintenance_mode, is_maintenance_mode, set_session_manager as set_agent_session_mgr
 from api.session import SessionManager
 from api.logger import QueryLogger
+from api.ops_runner import start_job, get_job, subscribe_job
 from adapters.telegram_adapter import TelegramAdapter
 from adapters.telegram_adapter import set_session_manager as set_telegram_session_mgr
 from adapters.zalo_adapter import ZaloAdapter
@@ -304,6 +305,8 @@ async def dashboard():
     html_path = Path(__file__).parent.parent / "ui" / "dashboard.html"
     if html_path.exists():
         html = html_path.read_text(encoding="utf-8")
+        token = os.getenv("ADMIN_TOKEN", "")
+        html = html.replace("__ADMIN_TOKEN__", token)
         return HTMLResponse(content=html)
     return HTMLResponse(content="<h1>dashboard.html not found</h1>", status_code=404)
 
@@ -606,3 +609,91 @@ async def trace_detail(trace_id: str):
     if not trace:
         raise HTTPException(status_code=404, detail="Trace not found")
     return trace
+
+
+# ---------------------------------------------------------------------------
+# Admin Operations — run system tasks from the dashboard
+# ---------------------------------------------------------------------------
+
+ALLOWED_SERVICES = {
+    "doantn": "doantn.service",
+    "ehc-worker": "ehc-worker.service",
+    "ehc-vllm": "ehc-vllm.service",
+}
+
+
+def _check_admin(request: Request) -> None:
+    """Verify X-Admin-Token header matches ADMIN_TOKEN env var."""
+    token = request.headers.get("X-Admin-Token", "")
+    if token != ADMIN_TOKEN:
+        raise HTTPException(status_code=403, detail="Forbidden")
+
+
+@app.post("/admin/ops/reindex")
+async def ops_reindex(request: Request):
+    """Run ingestor + embedder as subprocess, stream output via SSE."""
+    _check_admin(request)
+    job_id = start_job([
+        "bash", "-c",
+        "python3 -m data.ingestor && python3 -m data.embedder"
+    ])
+    return {"job_id": job_id}
+
+
+@app.post("/admin/ops/restart/{service_key}")
+async def ops_restart(service_key: str, request: Request):
+    """Restart a systemd service. Requires sudoers NOPASSWD rule."""
+    _check_admin(request)
+    if service_key not in ALLOWED_SERVICES:
+        raise HTTPException(status_code=400, detail=f"Unknown service '{service_key}'")
+    service = ALLOWED_SERVICES[service_key]
+    job_id = start_job(["sudo", "systemctl", "restart", service])
+    return {"job_id": job_id}
+
+
+@app.post("/admin/ops/reload-knowledge")
+async def ops_reload_knowledge(request: Request):
+    """Rebuild the knowledge _index.json in-process."""
+    _check_admin(request)
+    from core.knowledge_store import rebuild_index
+    try:
+        rebuild_index()
+        return {"status": "ok", "message": "Knowledge index rebuilt"}
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/admin/ops/stream/{job_id}")
+async def ops_stream(job_id: str):
+    """SSE stream: sends buffered lines first, then new lines as they arrive."""
+    import json as _json
+
+    async def generator():
+        job = get_job(job_id)
+        if not job:
+            yield f"data: {_json.dumps({'type': 'done', 'status': 'not_found'})}\n\n"
+            return
+        # Replay buffered lines
+        for line in job["lines"]:
+            yield f"data: {_json.dumps({'type': 'log', 'text': line})}\n\n"
+        if job["status"] != "running":
+            yield f"data: {_json.dumps({'type': 'done', 'status': job['status']})}\n\n"
+            return
+        # Subscribe for new lines
+        q = subscribe_job(job_id)
+        if not q:
+            return
+        while True:
+            try:
+                event = await asyncio.wait_for(q.get(), timeout=30.0)
+                yield f"data: {_json.dumps(event)}\n\n"
+                if event.get("type") == "done":
+                    break
+            except asyncio.TimeoutError:
+                yield ": keepalive\n\n"
+
+    return StreamingResponse(
+        generator(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )

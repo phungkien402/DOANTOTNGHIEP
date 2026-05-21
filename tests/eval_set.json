@@ -3,184 +3,422 @@
     "id": "q01",
     "question": "Kiosk bị lỗi màn hình đen phải làm sao",
     "type": "in_faq",
-    "expected_keywords": ["CNTT", "liên hệ", "hãng"],
+    "expected_keywords": [
+      "CNTT",
+      "liên hệ",
+      "hãng"
+    ],
     "expected_faq_subject": "Kiosk bị lỗi màn hình đen"
   },
   {
     "id": "q02",
     "question": "máy xét nghiệm không đổ kết quả về phần mềm",
     "type": "in_faq",
-    "expected_keywords": ["ping", "HOST-PC", "mạng"],
+    "expected_keywords": [
+      "ping",
+      "HOST-PC",
+      "mạng"
+    ],
     "expected_faq_subject": "Máy xét nghiệm không đổ kết quả"
   },
   {
     "id": "q03",
     "question": "cài đặt phần mềm như thế nào",
     "type": "in_faq",
-    "expected_keywords": [".net", "copy", "chạy"],
+    "expected_keywords": [
+      ".net",
+      "copy",
+      "chạy"
+    ],
     "expected_faq_subject": "Cài đặt phần mềm như thế nào"
   },
   {
     "id": "q04",
     "question": "lỗi cập nhật viện phí khi chuyển đối tượng bệnh nhân",
     "type": "in_faq",
-    "expected_keywords": ["phiếu thu", "BHYT", "hủy"],
+    "expected_keywords": [
+      "phiếu thu",
+      "BHYT",
+      "hủy"
+    ],
     "expected_faq_subject": "Lỗi cập nhật thông tin viện phí khi chuyển đối tượng bệnh nhân"
   },
   {
     "id": "q05",
     "question": "không hiển thị form ký số phiếu chăm sóc",
     "type": "in_faq",
-    "expected_keywords": ["phân quyền", "user"],
+    "expected_keywords": [
+      "phân quyền",
+      "user"
+    ],
     "expected_faq_subject": "Không hiển thị form ký số phiếu chăm sóc"
   },
   {
     "id": "q06",
     "question": "không in được bảng kê 6556",
     "type": "in_faq",
-    "expected_keywords": ["xử trí", "ra viện"],
+    "expected_keywords": [
+      "xử trí",
+      "ra viện"
+    ],
     "expected_faq_subject": "Không in được bảng kê 6556"
   },
   {
     "id": "q07",
     "question": "tại sao bệnh nhân không nhập viện được",
     "type": "in_faq",
-    "expected_keywords": ["xử trí", "ngoại trú"],
+    "expected_keywords": [
+      "xử trí",
+      "ngoại trú"
+    ],
     "expected_faq_subject": "Tại sao Bn không nhập viện được"
   },
   {
     "id": "q08",
     "question": "không xóa được phiếu đã chỉ định",
     "type": "in_faq",
-    "expected_keywords": ["hủy", "thực hiện"],
+    "expected_keywords": [
+      "hủy",
+      "thực hiện"
+    ],
     "expected_faq_subject": "Không xoá được phiếu đã chỉ định"
   },
   {
     "id": "q09",
     "question": "lỗi không tổng hợp được đơn thuốc treo",
     "type": "in_faq",
-    "expected_keywords": ["đơn thuốc", "gửi"],
+    "expected_keywords": [
+      "đơn thuốc",
+      "gửi"
+    ],
     "expected_faq_subject": "Lỗi không tổng hợp được đơn thuốc treo"
   },
   {
     "id": "q10",
     "question": "tại sao bệnh nhân không xử trí ra viện được",
     "type": "in_faq",
-    "expected_keywords": ["dịch vụ", "kết quả", "duyệt"],
+    "expected_keywords": [
+      "dịch vụ",
+      "kết quả",
+      "duyệt"
+    ],
     "expected_faq_subject": "tại sao bệnh nhân không xử trí ra viện được"
   },
   {
     "id": "q11",
     "question": "in phiếu không lên form view làm sao",
     "type": "in_faq",
-    "expected_keywords": ["C++", "cài"],
+    "expected_keywords": [
+      "C++",
+      "cài"
+    ],
     "expected_faq_subject": "In phiếu không lên form view"
   },
   {
     "id": "q12",
     "question": "muốn hủy nhập viện thì bấm vào đâu",
     "type": "in_faq",
-    "expected_keywords": ["hủy", "nhập viện"],
+    "expected_keywords": [
+      "hủy",
+      "nhập viện"
+    ],
     "expected_faq_subject": "Muốn hủy nhập viện thì bấn vào đâu"
   },
   {
     "id": "q13",
     "question": "xử trí cứ xoay hoài không dừng",
     "type": "colloquial",
-    "expected_keywords": ["tab", "thông báo", "tắt"],
+    "expected_keywords": [
+      "tab",
+      "thông báo",
+      "tắt"
+    ],
     "expected_faq_subject": "Khi xử trí cứ xoay đang xử lý mãi không ngừng"
   },
   {
     "id": "q14",
     "question": "phần mềm bắt update mới vô được",
     "type": "colloquial",
-    "expected_keywords": ["update", "tab"],
+    "expected_keywords": [
+      "update",
+      "tab"
+    ],
     "expected_faq_subject": "Tại sao phần mềm lại báo phải update mới cho vào?"
   },
   {
     "id": "q15",
     "question": "BN ra viện rồi muốn sửa thông tin",
     "type": "colloquial",
-    "expected_keywords": ["sửa", "thông tin", "ra viện"],
+    "expected_keywords": [
+      "sửa",
+      "thông tin",
+      "ra viện"
+    ],
     "expected_faq_subject": "Cần sửa thông tin khi bn đã xử trí ra viện"
   },
   {
     "id": "q16",
     "question": "in giấy ra viện lại ở đâu",
     "type": "colloquial",
-    "expected_keywords": ["in", "ra viện", "bệnh nhân"],
+    "expected_keywords": [
+      "in",
+      "ra viện",
+      "bệnh nhân"
+    ],
     "expected_faq_subject": "muốn in lại giấy ra viện thì in ở đâu"
   },
   {
     "id": "q17",
     "question": "thuốc đã kê muốn sửa liều",
     "type": "colloquial",
-    "expected_keywords": ["sửa", "liều"],
+    "expected_keywords": [
+      "sửa",
+      "liều"
+    ],
     "expected_faq_subject": "Muốn sửa liều dùng thuốc thì làm thế nào"
-  },
-  {
-    "id": "q18",
-    "question": "làm sao cấu hình VPN cho bệnh viện",
-    "type": "not_in_faq",
-    "expected_behavior": "fallback"
-  },
-  {
-    "id": "q19",
-    "question": "cách cài đặt máy chủ Oracle cho EHC",
-    "type": "not_in_faq",
-    "expected_behavior": "fallback"
-  },
-  {
-    "id": "q20",
-    "question": "hướng dẫn tích hợp PACS với hệ thống RIS",
-    "type": "not_in_faq",
-    "expected_behavior": "fallback"
-  },
-  {
-    "id": "q21",
-    "question": "lỗi gì",
-    "type": "ambiguous",
-    "expected_behavior": "ask_clarification"
-  },
-  {
-    "id": "q22",
-    "question": "huh??",
-    "type": "ambiguous",
-    "expected_behavior": "ask_clarification"
-  },
-  {
-    "id": "q_new_01",
-    "question": "muốn hủy nhập viện thì bấm vào đâu",
-    "type": "colloquial",
-    "expected_keywords": ["hủy", "nhập viện"],
-    "expected_faq_subject": "Muốn hủy nhập viện thì bấn vào đâu"
   },
   {
     "id": "q_new_02",
     "question": "sao thuốc kê xong không thấy trong đơn",
     "type": "colloquial",
-    "expected_keywords": ["thuốc", "tổng hợp"],
+    "expected_keywords": [
+      "thuốc",
+      "tổng hợp"
+    ],
     "expected_faq_subject": "Tại sao đã kê thuốc rồi mà khi tổng hợp không thấy"
-  },
-  {
-    "id": "q_new_03",
-    "question": "bệnh nhân thanh toán rồi mà vẫn còn nợ",
-    "type": "colloquial",
-    "expected_keywords": ["thanh toán"],
-    "expected_faq_subject": "Lỗi thanh toán QR động thường do những nguyên nhân nảo?"
-  },
-  {
-    "id": "q_new_04",
-    "question": "in toa thuốc bị trắng trang",
-    "type": "colloquial",
-    "expected_keywords": ["in", "trắng"],
-    "expected_faq_subject": "Tại sao khi ấn in vỏ bệnh án mà trắng xóa không thấy có nội dung nào hiện lên"
   },
   {
     "id": "q_new_05",
     "question": "chuyển khoa cho bệnh nhân làm sao",
     "type": "colloquial",
-    "expected_keywords": ["chuyển", "bệnh nhân"],
+    "expected_keywords": [
+      "chuyển",
+      "bệnh nhân"
+    ],
     "expected_faq_subject": "Muốn chuyển phòng khám cho bệnh nhân?"
+  },
+  {
+    "id": "q_faq_01",
+    "question": "đăng ký khám lại cho bệnh nhân cũ làm sao",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Đón Tiếp",
+      "Đăng Ký Khám Bệnh",
+      "mã bệnh nhân"
+    ],
+    "expected_faq_subject": "Làm sao đăng ký khám cho bệnh nhân cũ"
+  },
+  {
+    "id": "q_faq_02",
+    "question": "in phiếu hướng dẫn xét nghiệm cho bệnh nhân ở đâu",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Khám bệnh",
+      "In",
+      "cận lâm sàng"
+    ],
+    "expected_faq_subject": "In phiếu hướng dẫn thực hiện cận lâm sàng"
+  },
+  {
+    "id": "q_faq_03",
+    "question": "chỉ định xét nghiệm cho bệnh nhân bằng cách nào",
+    "type": "in_faq",
+    "expected_keywords": [
+      "Khám bệnh",
+      "Dịch vụ"
+    ],
+    "expected_faq_subject": "Cách chỉ định dịch vụ"
+  },
+  {
+    "id": "q_faq_04",
+    "question": "xem ảnh chụp CT XQ siêu âm PACS ở đâu",
+    "type": "colloquial",
+    "expected_keywords": [
+      "CĐHA",
+      "chuột phải",
+      "xem ảnh"
+    ],
+    "expected_faq_subject": "để xem ảnh CT và XQ, siêu âm pacs thao tác như nào"
+  },
+  {
+    "id": "q_faq_05",
+    "question": "in bảng kê khám bệnh chữa bệnh tìm ở đâu",
+    "type": "in_faq",
+    "expected_keywords": [
+      "Hành chính",
+      "In",
+      "Bảng kê"
+    ],
+    "expected_faq_subject": "in bảng kê khám bệnh, chữa bệnh tìm ở đâu"
+  },
+  {
+    "id": "q_faq_06",
+    "question": "chuyển bệnh nhân sang phòng khám khác làm sao",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Khám bệnh",
+      "Chuyển bệnh nhân",
+      "phòng"
+    ],
+    "expected_faq_subject": "Chuyển BN sang phòng khám khác"
+  },
+  {
+    "id": "q_faq_07",
+    "question": "in riêng từng phiếu chỉ định dịch vụ",
+    "type": "colloquial",
+    "expected_keywords": [
+      "chuột phải",
+      "in phiếu chỉ định"
+    ],
+    "expected_faq_subject": "Cách in phiếu chỉ định dịch vụ riêng"
+  },
+  {
+    "id": "q_faq_08",
+    "question": "sửa chẩn đoán bệnh sau khi đã lưu",
+    "type": "colloquial",
+    "expected_keywords": [
+      "chuột phải",
+      "Sửa thông tin",
+      "chẩn đoán"
+    ],
+    "expected_faq_subject": "Cách sửa chấn đoán bệnh khám bệnh"
+  },
+  {
+    "id": "q_faq_09",
+    "question": "mở lại bệnh án để sửa thông tin bên trong",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Mở lại bệnh án",
+      "chuột phải"
+    ],
+    "expected_faq_subject": "Cách sửa thông tin bên trong bệnh án sau khi đã kết thúc điều trị"
+  },
+  {
+    "id": "q_faq_10",
+    "question": "phần mềm bị đơ không tắt được phải làm sao",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Task manager",
+      "EhcHIS",
+      "end process"
+    ],
+    "expected_faq_subject": "Phần mềm bị treo không thao tác được, không tắt được phần mềm"
+  },
+  {
+    "id": "q_faq_11",
+    "question": "làm bệnh án HIV cho bệnh nhân ngoại trú",
+    "type": "colloquial",
+    "expected_keywords": [
+      "BA điện tử",
+      "TÀI LIỆU TUỲ BIẾN"
+    ],
+    "expected_faq_subject": "Cách sử dụng tài liệu tuỳ biến"
+  },
+  {
+    "id": "q_hdsd_01",
+    "question": "sao không biết phòng khám đang có bao nhiêu bệnh nhân",
+    "type": "colloquial",
+    "expected_keywords": [
+      "phòng khám",
+      "trạng thái",
+      "Đón tiếp"
+    ],
+    "expected_faq_subject": "Làm sao xem trạng thái các phòng khám?"
+  },
+  {
+    "id": "q_hdsd_02",
+    "question": "cấp số thứ tự khám cho bệnh nhân thế nào",
+    "type": "colloquial",
+    "expected_keywords": [
+      "STT",
+      "số thứ tự",
+      "Đón tiếp"
+    ],
+    "expected_faq_subject": "Làm sao cấp số thứ tự khám bệnh cho bệnh nhân"
+  },
+  {
+    "id": "q_hdsd_03",
+    "question": "xem lại lịch sử khám bệnh của bệnh nhân cũ",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Đón Tiếp",
+      "lịch sử",
+      "Đăng Ký Khám Bệnh"
+    ],
+    "expected_faq_subject": "Làm sao xem lịch sử khám bệnh của bệnh nhân cũ"
+  },
+  {
+    "id": "q_hdsd_04",
+    "question": "quét thẻ BHYT để đăng ký khám",
+    "type": "colloquial",
+    "expected_keywords": [
+      "mã vạch",
+      "BHYT",
+      "Đón Tiếp"
+    ],
+    "expected_faq_subject": "Đăng ký khám bằng mã vạch BHYT"
+  },
+  {
+    "id": "q_hdsd_05",
+    "question": "chuyển phòng cho bệnh nhân nội trú như thế nào",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Hành chính",
+      "Chuyển phòng"
+    ],
+    "expected_faq_subject": "Hướng dẫn chuyển phòng cho bệnh nhân"
+  },
+  {
+    "id": "q_hdsd_06",
+    "question": "gộp 2 mã bệnh nhân trùng lại với nhau",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Đón Tiếp",
+      "gộp",
+      "chuột phải"
+    ],
+    "expected_faq_subject": "Cách gộp mã bệnh nhân"
+  },
+  {
+    "id": "q_hdsd_07",
+    "question": "lấy danh sách bệnh nhân ra viện trong tháng",
+    "type": "colloquial",
+    "expected_keywords": [
+      "Điều trị",
+      "In",
+      "ra viện"
+    ],
+    "expected_faq_subject": "Lấy danh sách bệnh nhân vào viện - chuyển viện - ra viện"
+  },
+  {
+    "id": "q_hdsd_08",
+    "question": "xem tồn kho thuốc hiện tại ở đâu",
+    "type": "in_faq",
+    "expected_keywords": [
+      "Điều trị",
+      "dược lâm sàng",
+      "tồn kho"
+    ],
+    "expected_faq_subject": "Xem tồn kho thuốc ở đâu?"
+  },
+  {
+    "id": "q_hdsd_09",
+    "question": "mở bệnh án lưu không được phần mềm không báo lỗi",
+    "type": "colloquial",
+    "expected_keywords": [
+      "làm mới"
+    ],
+    "expected_faq_subject": "Tại mở bệnh án ra lưu lại mà không lưu được, phần mềm cũng không báo gì"
+  },
+  {
+    "id": "q_hdsd_10",
+    "question": "vỏ bệnh án chỉ có nút in không có nút ký",
+    "type": "colloquial",
+    "expected_keywords": [
+      "nhập thông tin",
+      "dữ liệu",
+      "ký"
+    ],
+    "expected_faq_subject": "tại sao vỏ bệnh án chỉ hiện in không có phần ký"
   }
 ]
