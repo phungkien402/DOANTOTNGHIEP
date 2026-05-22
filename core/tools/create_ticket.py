@@ -75,7 +75,7 @@ def save_ticket(query: str, user_intent: str = None, rewritten_query: str = "", 
             "timestamp": ts,
             "query": query,
             "rewritten_query": rewritten_query,
-            "confidence": round(confidence, 4),
+            "confidence": float(round(confidence, 4)),
             "ticket_id": ticket_id,
         }
         with open(jsonl_path, "a", encoding="utf-8") as f:

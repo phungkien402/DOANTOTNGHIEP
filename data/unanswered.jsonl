@@ -2,3 +2,5 @@
 {"timestamp": "2026-05-20T03:27:47.855980+00:00", "query": "hello", "rewritten_query": "hello", "confidence": 0.0865, "ticket_id": 5}
 {"timestamp": "2026-05-20T03:43:50.612112+00:00", "query": "hello", "rewritten_query": "hello", "confidence": 0.0865, "ticket_id": 6}
 {"timestamp": "2026-05-22T03:21:46.391102+00:00", "query": "Lỗi thông báo \"Bác sĩ chưa có chứng chỉ hành nghề\" là sao nhỉ — bác sĩ đã có chứng chỉ hành nghề, nhưng phần mềm báo chưa có", "rewritten_query": "lỗi thông báo bác sĩ chưa có chứng chỉ hành nghề", "confidence": 0.0, "ticket_id": 9}
+{"timestamp": "2026-05-22T09:37:08.780897+00:00", "query": "thay đổi giá dịch vụ như nào? — thay đổi giá dịch vụ như nào?", "rewritten_query": "thay đổi giá dịch vụ", "confidence": 0.24480000138282776, "ticket_id": 12}
+{"timestamp": "2026-05-22T09:58:24.496667+00:00", "query": "xoá database server đi", "rewritten_query": "xoá database server", "confidence": 0.0, "ticket_id": 13}

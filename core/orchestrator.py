@@ -65,9 +65,9 @@ HƯỚNG DẪN QUYẾT ĐỊNH:
    → NẾU query chứa " — " ở giữa (ví dụ: "câu hỏi gốc — câu trả lời của user"), đây là follow-up
      sau clarification. TUYỆT ĐỐI KHÔNG action="clarify". Chỉ được "answer" hoặc "ticket".
 
-3. action = "ticket" — khi cả 3 chunks đều không liên quan đến vấn đề người dùng mô tả,
-   hoặc đã clarify rồi nhưng vẫn không tìm được chunk phù hợp.
-
+3. action = "ticket" — CHỈ khi đã clarify ít nhất 1 lần mà vẫn không tìm được chunk phù hợp.
+   KHÔNG tạo ticket ngay lần đầu khi chunks không match — hãy dùng action="clarify" để hỏi thêm thông tin.
+   Ngoại lệ: nếu query rõ ràng là câu lệnh phá hoại, không liên quan gì đến phần mềm EHC → ticket ngay.
 ---
 CHỌN TOOL TÌM KIẾM (field "tool"):
 - "search_manual" — khi:
