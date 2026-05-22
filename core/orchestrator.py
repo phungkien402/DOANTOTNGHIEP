@@ -62,6 +62,8 @@ HƯỚNG DẪN QUYẾT ĐỊNH:
    → clarify_message = liệt kê các trường hợp từ chunks theo danh sách đánh số.
      Kết thúc bằng: "Nếu không có trường hợp nào phù hợp, bạn có thể mô tả chi tiết vấn đề bằng lời của mình."
    → KHÔNG clarify nếu lịch sử cho thấy đã hỏi lại 1 lần → dùng action="answer" hoặc "ticket"
+   → NẾU query chứa " — " ở giữa (ví dụ: "câu hỏi gốc — câu trả lời của user"), đây là follow-up
+     sau clarification. TUYỆT ĐỐI KHÔNG action="clarify". Chỉ được "answer" hoặc "ticket".
 
 3. action = "ticket" — khi cả 3 chunks đều không liên quan đến vấn đề người dùng mô tả,
    hoặc đã clarify rồi nhưng vẫn không tìm được chunk phù hợp.
