@@ -22,6 +22,7 @@ class SessionManager:
         self._last_active: dict[str, float] = {}
         self._awaiting_clarification: dict[str, bool] = {}
         self._fast_chunks: dict[str, list] = {}
+        self._clarify_count: dict[str, int] = {}
         self._max_turns = max_turns
         self._ttl = ttl_seconds
 
@@ -52,8 +53,9 @@ class SessionManager:
         return self._awaiting_clarification.get(session_id, False)
 
     def set_awaiting_clarification(self, session_id: str, value: bool) -> None:
-        """Set or clear the awaiting_clarification flag."""
         self._awaiting_clarification[session_id] = value
+        if not value:
+            self._clarify_count.pop(session_id, None)  # reset count khi kết thúc flow
 
     def get_fast_chunks(self, session_id: str) -> list:
         """Get saved fast_chunks from the clarification turn."""
@@ -63,6 +65,13 @@ class SessionManager:
     def set_fast_chunks(self, session_id: str, chunks: list) -> None:
         """Save fast_chunks for reuse in the next turn."""
         self._fast_chunks[session_id] = chunks
+
+    def get_clarify_count(self, session_id: str) -> int:
+        self._check_ttl(session_id)
+        return self._clarify_count.get(session_id, 0)
+
+    def increment_clarify_count(self, session_id: str) -> None:
+        self._clarify_count[session_id] = self._clarify_count.get(session_id, 0) + 1
 
     def clear(self, session_id: str) -> None:
         """Clear a session's history."""

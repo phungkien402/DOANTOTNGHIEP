@@ -226,10 +226,15 @@ def node_orchestrator(state: AgentState) -> dict:
 
     # Guard: nếu session đang awaiting (đã clarify 1 lần) mà orchestrator vẫn muốn clarify lại
     # → override sang ticket (không có đủ thông tin để trả lời)
-    if action == "clarify" and _session_mgr and _session_mgr.is_awaiting_clarification(session_id):
-        print(f"[ORCHESTRATOR] Guard: overriding clarify→ticket (already awaiting)")
-        action = "ticket"
-        result["action"] = "ticket"
+    if action == "clarify" and _session_mgr:
+        clarify_count = _session_mgr.get_clarify_count(session_id)
+        if clarify_count >= 2:
+            print(f"[ORCHESTRATOR] Guard: overriding clarify→ticket (clarify_count={clarify_count})")
+            action = "ticket"
+            result["action"] = "ticket"
+        else:
+            _session_mgr.increment_clarify_count(session_id)
+            print(f"[ORCHESTRATOR] Allowing clarify #{clarify_count + 1}")
 
     elapsed = (time.time() - t_orch_start) * 1000
 

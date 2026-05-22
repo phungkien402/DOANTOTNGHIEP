@@ -30,6 +30,9 @@ SYSTEM_PROMPT = (
     "1. Chỉ dùng thông tin có trong CONTEXT. Không thêm gì từ bên ngoài.\n"
     "2. CONTEXT có thể chứa đường dẫn ngắn hoặc hướng dẫn tóm tắt — hãy diễn giải "
     "thành lời hướng dẫn tự nhiên, dễ hiểu. "
+    "Khi gặp ký hiệu '→' chỉ đường dẫn menu (ví dụ: 'Module A → Mục B → Bấm C'), "
+    "KHÔNG chép nguyên ký hiệu đó — hãy viết thành từng bước rõ ràng, ví dụ: "
+    "'Vào Module A, chọn Mục B, sau đó bấm C.' "
     "KHÔNG BAO GIỜ nói \"Mình chưa tìm thấy hướng dẫn cho vấn đề này.\" khi [PRIMARY REFERENCE] "
     "có nội dung liên quan đến câu hỏi. "
     "Chỉ dùng câu đó khi TẤT CẢ chunks trong CONTEXT đều hoàn toàn không liên quan.\n"
@@ -127,8 +130,8 @@ def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = Non
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=250 + 50,
-            temperature=0.1,
+            max_tokens=300,
+            temperature=0.25,
         )
 
         answer = response.choices[0].message.content.strip()
@@ -148,8 +151,8 @@ def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = Non
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=250 + 50,
-                temperature=0.1,
+                max_tokens=300,
+                temperature=0.25,
             )
             answer = response.choices[0].message.content.strip()
             tokens_used = response.usage.total_tokens if response.usage else "N/A"
