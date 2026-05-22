@@ -150,6 +150,21 @@ async def handle_webhook(platform: str, request: Request, background_tasks: Back
         )
         print(f"[WEBHOOK] Enqueued | chat_id={chat_id} | query=\"{message.text}\"")
         return {"ok": True}
+        
+    if platform == "slack":
+        thread_ts = adapter.pop_thread_ts(message.session_id)
+        parts = message.session_id.replace("slack_", "").split("_")
+        channel_id = parts[0]
+        _queue.enqueue(
+            "workers.pipeline_worker.process_slack_query",
+            session_id=message.session_id,
+            channel_id=channel_id,
+            text=message.text,
+            thread_ts=thread_ts or "",
+            history=session_history,
+        )
+        print(f"[WEBHOOK] Enqueued Slack | channel={channel_id} | query=\"{message.text}\"")
+        return {"ok": True}
 
     # --- Other platforms: synchronous processing ---
     t0 = time.time()

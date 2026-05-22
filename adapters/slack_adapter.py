@@ -43,6 +43,10 @@ _pending_thread_ts: dict[str, str] = {}
 
 class SlackAdapter(BaseAdapter):
 
+    def pop_thread_ts(self, session_id: str) -> str | None:
+        """Pop thread_ts for a session (used before enqueuing to RQ worker)."""
+        return _pending_thread_ts.pop(session_id, None)
+
     def parse_message(self, raw: dict) -> Message | None:
         """
         Parse a Slack Events API payload.

@@ -130,7 +130,7 @@ def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = Non
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=300,
+            max_tokens=500,
             temperature=0.25,
         )
 
@@ -151,7 +151,7 @@ def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = Non
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=300,
+                max_tokens=500,
                 temperature=0.25,
             )
             answer = response.choices[0].message.content.strip()
