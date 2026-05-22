@@ -1,5 +1,11 @@
 [
   {
+    "stem": "XuTri",
+    "filename": "XuTri.md",
+    "title": "Các vấn đề lỗi về xử trí",
+    "covers": "[tên dịch vụ] chưa có mã bác sĩ đọc kết quả"
+  },
+  {
     "stem": "medications",
     "filename": "medications.md",
     "title": "Hướng dẫn nghiệp vụ thuốc và kê đơn",
