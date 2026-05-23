@@ -25,6 +25,14 @@ _DANGEROUS_PATTERNS = re.compile(
     re.IGNORECASE | re.UNICODE,
 )
 
+def _safe_content(response):
+    try:
+        return response.choices[0].message.content
+    except Exception:
+        return None
+
+_BUDGET_GUARD = 128  # classify chỉ cần YES/NO
+
 
 def _load_terminology() -> str:
     """Load terminology from data/terminology.json and format for prompt injection.
@@ -91,10 +99,14 @@ def classify(query: str) -> bool:
         response = _client.chat.completions.create(
             model=VLLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
-            max_tokens=5,
+            max_tokens=200,
             temperature=0.0,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": 128}},
         )
-        answer = response.choices[0].message.content.strip().upper()
+        answer = _safe_content(response)
+        if answer is None:
+            raise ValueError("content=None")
+        answer = answer.strip().upper()
         print(f"[INTENT_GUARD] Classify: \"{query}\" → {answer}")
         return answer.startswith("NO")
 
@@ -131,10 +143,14 @@ def chat_fallback(query: str) -> str:
                 {"role": "system", "content": CHAT_SYSTEM_PROMPT},
                 {"role": "user", "content": query},
             ],
-            max_tokens=60,
-            temperature=0.3,
+            max_tokens=500,
+            temperature=0.3,   # (retry giữ nguyên 0.7)
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": 256}},
         )
-        result = response.choices[0].message.content.strip()
+        result = _safe_content(response)
+        if result is None:
+            return _FALLBACK_RESPONSE
+        result = result.strip()
         print(f"[INTENT_GUARD] Chat fallback: \"{result}\"")
         return result
 
