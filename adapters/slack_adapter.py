@@ -76,8 +76,9 @@ class SlackAdapter(BaseAdapter):
             return None
 
         # Store thread_ts so send_message can reply in-thread
-        session_id = f"slack_{channel_id}_{user_id}"
-        _pending_thread_ts[session_id] = ts_str
+        thread_root = event.get("thread_ts") or ts_str
+        session_id = f"slack_{channel_id}_{thread_root}"
+        _pending_thread_ts[session_id] = thread_root
 
         return Message(
             user_id=user_id,

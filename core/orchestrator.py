@@ -58,12 +58,10 @@ HƯỚNG DẪN QUYẾT ĐỊNH:
    Ví dụ KHÔNG phải chủ thể cụ thể: "không in được", "bị lỗi", "không dùng được", "mình không làm được"
    → search_query = câu truy vấn tối ưu, tiếng Việt, cụ thể, bỏ từ thừa ("mình", "ấy", "nhỉ", "vậy")
 
-2. action = "clarify" — khi query không đề cập chủ thể cụ thể VÀ nhiều chunk có thể phù hợp.
-   → clarify_message = liệt kê các trường hợp từ chunks theo danh sách đánh số.
-     Kết thúc bằng: "Nếu không có trường hợp nào phù hợp, bạn có thể mô tả chi tiết vấn đề bằng lời của mình."
-   → KHÔNG clarify nếu lịch sử cho thấy đã hỏi lại 1 lần → dùng action="answer" hoặc "ticket"
-   → NẾU query chứa " — " ở giữa (ví dụ: "câu hỏi gốc — câu trả lời của user"), đây là follow-up
-     sau clarification. TUYỆT ĐỐI KHÔNG action="clarify". Chỉ được "answer" hoặc "ticket".
+2. action = "clarify" — → Before choosing action="answer" for a problem report, check if the query provides
+  at least ONE of: a specific error message, a specific module/screen name, a specific
+  action that triggered the issue, or a specific document type involved.
+  If NONE are present, use action="clarify" regardless of chunk score.
 
 3. action = "ticket" — CHỈ khi đã clarify ít nhất 1 lần mà vẫn không tìm được chunk phù hợp.
    KHÔNG tạo ticket ngay lần đầu khi chunks không match — hãy dùng action="clarify" để hỏi thêm thông tin.
