@@ -29,6 +29,17 @@ from core.knowledge_store import list_topics
 # Module-level client — same pattern as query_rewriter.py
 _client = OpenAI(base_url=f"{VLLM_BASE_URL}/v1", api_key="not-needed")
 
+
+def _safe_content(response) -> str | None:
+    """Return message content or None if missing (Qwen3 thinking overflow)."""
+    try:
+        return response.choices[0].message.content
+    except Exception:
+        return None
+
+
+_BUDGET_ORCHESTRATOR = 512  # enough reasoning for routing decisions
+
 ORCHESTRATOR_PROMPT = """Bạn là bộ não của hệ thống hỗ trợ phần mềm EHC (quản lý bệnh viện).
 
 Nhiệm vụ: Đọc câu hỏi của người dùng, lịch sử hội thoại, và 3 đoạn FAQ tìm được. Quyết định hành động tiếp theo.
@@ -144,16 +155,21 @@ def orchestrate(query: str, fast_chunks: list, session_history: list = None) -> 
 
     print(f"[ORCHESTRATOR] Query: \"{query}\"")
 
-    messages = [{"role": "user", "content": prompt}]
+    messages = [{"role": "system", "content": prompt}]
 
     try:
         response = _client.chat.completions.create(
             model=VLLM_MODEL,
             messages=messages,
-            max_tokens=300,
+            max_tokens=1000,
             temperature=0.1,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_ORCHESTRATOR}},
         )
-        raw = response.choices[0].message.content.strip()
+        raw = _safe_content(response)
+        if raw is None:
+            print("[ORCHESTRATOR] content=None (thinking overflow) → fallback")
+            return _fallback_result(query)
+        raw = raw.strip()
     except APIConnectionError:
         # Retry once after 1s
         print("[ORCHESTRATOR] Connection error, retrying in 1s...")
@@ -162,10 +178,15 @@ def orchestrate(query: str, fast_chunks: list, session_history: list = None) -> 
             response = _client.chat.completions.create(
                 model=VLLM_MODEL,
                 messages=messages,
-                max_tokens=300,
+                max_tokens=1000,
                 temperature=0.1,
+                extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_ORCHESTRATOR}},
             )
-            raw = response.choices[0].message.content.strip()
+            raw = _safe_content(response)
+            if raw is None:
+                print("[ORCHESTRATOR] content=None (thinking overflow, retry) → fallback")
+                return _fallback_result(query)
+            raw = raw.strip()
         except Exception as e:
             print(f"[ORCHESTRATOR] Retry failed: {e} → fallback to answer")
             return _fallback_result(query)

@@ -22,6 +22,17 @@ from core.models import RetrievedChunk
 # Module-level client — created once when module is first imported
 _client = OpenAI(base_url=f"{VLLM_BASE_URL}/v1", api_key="not-needed")
 
+
+def _safe_content(response) -> str | None:
+    """Return message content or None if missing (Qwen3 thinking overflow)."""
+    try:
+        return response.choices[0].message.content
+    except Exception:
+        return None
+
+
+_BUDGET_GENERATOR = 1024  # generator needs more reasoning for quality answers
+
 SYSTEM_PROMPT = (
     "Bạn là nhân viên hỗ trợ kỹ thuật phần mềm bệnh án điện tử EHC. "
     "Bạn trả lời câu hỏi của bác sĩ và nhân viên y tế dựa HOÀN TOÀN vào tài liệu "
@@ -136,11 +147,15 @@ def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = Non
                 {"role": "system", "content": SYSTEM_PROMPT},
                 {"role": "user", "content": user_prompt},
             ],
-            max_tokens=500,
+            max_tokens=1500,
             temperature=0.25,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_GENERATOR}},
         )
 
-        answer = response.choices[0].message.content.strip()
+        answer = _safe_content(response)
+        if answer is None:
+            raise LLMUnavailableError("content=None (thinking overflow)")
+        answer = answer.strip()
         tokens_used = response.usage.total_tokens if response.usage else "N/A"
         print(f"[GENERATOR] Response: \"{answer[:100]}...\"")
         print(f"[GENERATOR] Tokens used: {tokens_used}")
@@ -157,17 +172,26 @@ def generate(query: str, chunks: list[RetrievedChunk], history: list[dict] = Non
                     {"role": "system", "content": SYSTEM_PROMPT},
                     {"role": "user", "content": user_prompt},
                 ],
-                max_tokens=500,
+                max_tokens=1500,
                 temperature=0.25,
+                extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_GENERATOR}},
             )
-            answer = response.choices[0].message.content.strip()
+            answer = _safe_content(response)
+            if answer is None:
+                raise LLMUnavailableError("content=None (thinking overflow)")
+            answer = answer.strip()
             tokens_used = response.usage.total_tokens if response.usage else "N/A"
             print(f"[GENERATOR] Response (retry): \"{answer[:100]}...\"")
             print(f"[GENERATOR] Tokens used: {tokens_used}")
             return answer
+        except LLMUnavailableError:
+            raise
         except Exception as retry_e:
             print(f"[GENERATOR] Retry failed ({type(retry_e).__name__}: {retry_e})")
             raise LLMUnavailableError(str(retry_e)) from retry_e
+
+    except LLMUnavailableError:
+        raise
 
     except Exception as e:
         error_msg = f"[GENERATOR] vLLM unavailable ({type(e).__name__}: {e})"

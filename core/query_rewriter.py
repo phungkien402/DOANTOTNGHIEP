@@ -23,6 +23,19 @@ from core.abbreviations import expand_abbreviations
 # Module-level client — created once when module is first imported
 _client = OpenAI(base_url=f"{VLLM_BASE_URL}/v1", api_key="not-needed")
 
+
+def _safe_content(response) -> str | None:
+    """Return message content or None if missing (Qwen3 thinking overflow)."""
+    try:
+        return response.choices[0].message.content
+    except Exception:
+        return None
+
+
+# Thinking budget per task type — limits Qwen3 reasoning tokens
+_BUDGET_FAST = 256    # rewrite, intent (simple classification)
+_BUDGET_MEDIUM = 512  # analyze_and_rewrite, intent_analyzer (structured JSON)
+
 SYSTEM_PROMPT = (
     "You are a query understanding assistant for EHC electronic medical record software support. "
     "Your job is to read a user's message and extract the core technical problem they are experiencing, "
@@ -111,11 +124,15 @@ def analyze_intent(query: str, chunks: list = None) -> str | None:
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_content},
             ],
-            max_tokens=100,
+            max_tokens=600,
             temperature=0.1,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_FAST}},
         )
 
-        intent = response.choices[0].message.content.strip()
+        raw = _safe_content(response)
+        if raw is None:
+            return None
+        intent = raw.strip()
         print(f"[INTENT] Result: \"{intent}\"")
         return intent
 
@@ -130,10 +147,14 @@ def analyze_intent(query: str, chunks: list = None) -> str | None:
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_content},
                 ],
-                max_tokens=100,
+                max_tokens=600,
                 temperature=0.1,
+                extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_FAST}},
             )
-            intent = response.choices[0].message.content.strip()
+            raw = _safe_content(response)
+            if raw is None:
+                return None
+            intent = raw.strip()
             print(f"[INTENT] Result (retry): \"{intent}\"")
             return intent
         except Exception:
@@ -158,11 +179,15 @@ def rewrite(text: str) -> str:
         response = _client.chat.completions.create(
             model=VLLM_MODEL,
             messages=_build_messages(text),
-            max_tokens=150,
+            max_tokens=700,
             temperature=0.1,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_FAST}},
         )
 
-        rewritten = response.choices[0].message.content.strip()
+        raw = _safe_content(response)
+        if raw is None:
+            raise LLMUnavailableError("content=None (thinking overflow)")
+        rewritten = raw.strip()
         print(f"[REWRITER] Rewritten: \"{rewritten}\"")
         return rewritten
 
@@ -174,15 +199,24 @@ def rewrite(text: str) -> str:
             response = _client.chat.completions.create(
                 model=VLLM_MODEL,
                 messages=_build_messages(text),
-                max_tokens=150,
+                max_tokens=700,
                 temperature=0.1,
+                extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_FAST}},
             )
-            rewritten = response.choices[0].message.content.strip()
+            raw = _safe_content(response)
+            if raw is None:
+                raise LLMUnavailableError("content=None (thinking overflow)")
+            rewritten = raw.strip()
             print(f"[REWRITER] Rewritten (retry): \"{rewritten}\"")
             return rewritten
+        except LLMUnavailableError:
+            raise
         except Exception as retry_e:
             print(f"[REWRITER] Retry failed ({type(retry_e).__name__}), raising LLMUnavailableError")
             raise LLMUnavailableError(str(retry_e)) from retry_e
+
+    except LLMUnavailableError:
+        raise
 
     except Exception as e:
         print(f"[REWRITER] vLLM unavailable ({type(e).__name__}), raising LLMUnavailableError")
@@ -278,11 +312,15 @@ def analyze_and_rewrite(query: str, chunks: list = None, session_history: list =
         response = _client.chat.completions.create(
             model=VLLM_MODEL,
             messages=messages,
-            max_tokens=200,
+            max_tokens=900,
             temperature=0.1,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_MEDIUM}},
         )
 
-        raw = response.choices[0].message.content.strip()
+        raw = _safe_content(response)
+        if raw is None:
+            raise LLMUnavailableError("content=None (thinking overflow)")
+        raw = raw.strip()
         intent, rewritten, answerable = _parse_analyze_response(raw, query)
         print(f"[ANALYZE+REWRITE] Intent: \"{intent}\"")
         print(f"[ANALYZE+REWRITE] Rewritten: \"{rewritten}\"")
@@ -297,18 +335,27 @@ def analyze_and_rewrite(query: str, chunks: list = None, session_history: list =
             response = _client.chat.completions.create(
                 model=VLLM_MODEL,
                 messages=messages,
-                max_tokens=200,
+                max_tokens=900,
                 temperature=0.1,
+                extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_MEDIUM}},
             )
-            raw = response.choices[0].message.content.strip()
+            raw = _safe_content(response)
+            if raw is None:
+                raise LLMUnavailableError("content=None (thinking overflow)")
+            raw = raw.strip()
             intent, rewritten, answerable = _parse_analyze_response(raw, query)
             print(f"[ANALYZE+REWRITE] Intent (retry): \"{intent}\"")
             print(f"[ANALYZE+REWRITE] Rewritten (retry): \"{rewritten}\"")
             print(f"[ANALYZE+REWRITE] Answerable (retry): \"{answerable}\"")
             return intent, rewritten, answerable
+        except LLMUnavailableError:
+            raise
         except Exception as retry_e:
             print(f"[ANALYZE+REWRITE] Retry failed ({type(retry_e).__name__}), raising LLMUnavailableError")
             raise LLMUnavailableError(str(retry_e)) from retry_e
+
+    except LLMUnavailableError:
+        raise
 
     except Exception as e:
         print(f"[ANALYZE+REWRITE] vLLM unavailable ({type(e).__name__}), raising LLMUnavailableError")
@@ -392,13 +439,17 @@ def analyze_intent_pre_retrieval(query: str, session_history: list = None) -> di
         return _client.chat.completions.create(
             model=VLLM_MODEL,
             messages=messages,
-            max_tokens=200,
+            max_tokens=900,
             temperature=0.1,
+            extra_body={"chat_template_kwargs": {"enable_thinking": True, "thinking_budget": _BUDGET_MEDIUM}},
         )
 
     try:
         resp = _call()
-        raw = resp.choices[0].message.content.strip()
+        raw = _safe_content(resp)
+        if raw is None:
+            raise ValueError("content=None (thinking overflow)")
+        raw = raw.strip()
         print(f"[INTENT_ANALYZER] Raw: {raw}")
         data = _json.loads(raw)
         action = data.get("action", "proceed")
@@ -412,7 +463,10 @@ def analyze_intent_pre_retrieval(query: str, session_history: list = None) -> di
         time.sleep(1)
         try:
             resp = _call()
-            raw = resp.choices[0].message.content.strip()
+            raw = _safe_content(resp)
+            if raw is None:
+                raise ValueError("content=None (thinking overflow)")
+            raw = raw.strip()
             data = _json.loads(raw)
             action = data.get("action", "proceed")
             rewritten = data.get("rewritten_query") or expanded

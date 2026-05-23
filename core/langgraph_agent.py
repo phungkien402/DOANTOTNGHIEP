@@ -108,18 +108,6 @@ def node_query_analyzer(state: AgentState) -> dict:
 
     t_start = time.time()
 
-    # Bypass classifier if mid-clarification — let Orchestrator handle via history
-    if _session_mgr and _session_mgr.is_awaiting_clarification(session_id):
-        print(f"[AGENT] Classifier: BYPASS (awaiting_clarification=True)")
-        elapsed = (time.time() - t_start) * 1000
-        tl_event(trace_id, "IntentGuard", "decision", {
-            "result": True, "bypass": True, "duration_ms": round(elapsed, 1),
-        }, duration_ms=round(elapsed, 1))
-        return {
-            "is_ehc_related": True,
-            "intent": "search_faq",
-        }
-
     is_off_topic = classify(query)
     elapsed = (time.time() - t_start) * 1000
 

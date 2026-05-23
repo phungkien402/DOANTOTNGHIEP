@@ -176,7 +176,7 @@ Sau khi xử trí, chữ ở form Xử trí và Khám bệnh sẽ chuyển sang 
 
 ## In tóm tắt bệnh án (thay cho sổ khám bệnh)
 
-Vào module **Khám bệnh** → Chọn **In** → Chọn **Bệnh án khám bệnh** → Bảng in Bệnh án khám bệnh hiện ra → Chọn **In** hoặc nhấn **Ctrl + P** để in.
+Dành cho bệnh nhân khám bệnh ngoại trú: Vào module **Khám bệnh** → Chọn **In** → Chọn **Bệnh án khám bệnh** → Bảng in Bệnh án khám bệnh hiện ra → Chọn **In** hoặc nhấn **Ctrl + P** để in.
 
 ---
 
