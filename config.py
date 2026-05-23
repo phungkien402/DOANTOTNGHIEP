@@ -37,7 +37,7 @@ REDMINE_PROJECT = _get("REDMINE_PROJECT", "ehcfaq")
 
 # --- vLLM ---
 VLLM_BASE_URL = _get("VLLM_BASE_URL", "http://localhost:8000")
-VLLM_MODEL = _get("VLLM_MODEL", "Qwen/Qwen2.5-7B-Instruct")
+VLLM_MODEL = _get("VLLM_MODEL", "Qwen/Qwen3-8B")
 
 # --- Embedding & Reranker ---
 EMBED_MODEL = _get("EMBED_MODEL", "BAAI/bge-m3")

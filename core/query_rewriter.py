@@ -7,6 +7,7 @@ doctors ask questions (short, informal) and how the FAQ is written (formal).
 Run standalone: python -m core.query_rewriter
 """
 
+import json as _json
 import sys
 import time
 from pathlib import Path
@@ -312,6 +313,121 @@ def analyze_and_rewrite(query: str, chunks: list = None, session_history: list =
     except Exception as e:
         print(f"[ANALYZE+REWRITE] vLLM unavailable ({type(e).__name__}), raising LLMUnavailableError")
         raise LLMUnavailableError(str(e)) from e
+
+
+# ---------------------------------------------------------------------------
+# Pre-retrieval intent analyzer
+# ---------------------------------------------------------------------------
+
+INTENT_ANALYZER_PROMPT = (
+    "Bạn là trợ lý phân tích ý định cho phần mềm bệnh án điện tử EHC.\n\n"
+    "Đọc tin nhắn của người dùng (và lịch sử hội thoại nếu có), rồi quyết định:\n"
+    "Mặc định dùng action=clarify TRỪ KHI tin nhắn có ít nhất MỘT trong:\n"
+    "- Tên module hoặc màn hình cụ thể (vd: module khám bệnh, màn hình xử trí)\n"
+    "- Thông báo lỗi cụ thể (vd: báo lỗi kết nối, hiện thông báo đỏ)\n"
+    "- Thao tác cụ thể đã làm (vd: ấn in vỏ bệnh án, bấm lưu xong thì...)\n"
+    "- Loại tài liệu cụ thể (vd: bảng kê 6556, giấy ra viện, phiếu khám)\n"
+    "Nếu chỉ mô tả chung chung như 'không in được', 'bị lỗi', 'không vào được' "
+    "mà không kèm thông tin nào trên → action=clarify\n"
+    "không thêm các ví dụ vào prompt vì đó chỉ là ví dụ.\n"
+    "Trả về JSON hợp lệ (không markdown, không giải thích thêm):\n"
+    "{\n"
+    '  "action": "proceed" | "clarify",\n'
+    '  "rewritten_query": "<câu truy vấn tiếng Việt, ngắn gọn, tối ưu cho vector search>",\n'
+    '  "clarify_message": "<câu hỏi ngắn — CHỈ điền khi action=clarify, để trống nếu proceed>"\n'
+    "}\n\n"
+    "Quy tắc rewritten_query:\n"
+    "- Encode những gì bạn hiểu từ tin nhắn của user\n"
+    "- Ngắn gọn, formal, bỏ từ thừa (mình, ạ, nhỉ, vậy)\n"
+    '- Prefix "Lỗi..." nếu là lỗi hệ thống, "Cách..." nếu là hướng dẫn thao tác\n'
+    "- Bắt buộc điền kể cả khi action=clarify (dự đoán tốt nhất có thể)\n\n"
+    "Quy tắc clarify_message:\n"
+    "- Chỉ hỏi dựa trên những gì user đã nói — KHÔNG suy diễn từ nguồn khác\n"
+    "- Hỏi cụ thể: lỗi gì? module nào? thao tác nào? thấy thông báo gì?\n"
+    "- KHÔNG đề cập 'hướng dẫn trước đó' nếu lịch sử không có bước nào\n"
+    "- KHÔNG giả định user đang dùng module cụ thể nếu họ chưa nói\n"
+    "- Tối đa 2 câu"
+)
+
+
+def analyze_intent_pre_retrieval(query: str, session_history: list = None) -> dict:
+    """
+    Pre-retrieval intent analysis — runs BEFORE FastRetriever.
+
+    Analyzes the user's query (+ recent history) to decide:
+    - action="proceed": intent is clear enough → continue to retrieval
+    - action="clarify": query is too vague → ask user for more details
+
+    Returns:
+        {
+            "action": "proceed" | "clarify",
+            "rewritten_query": str,    # always filled (best guess even when clarify)
+            "clarify_message": str,    # only when action=clarify
+        }
+
+    Falls back to {"action": "proceed", "rewritten_query": query} on any LLM error.
+    """
+    expanded = expand_abbreviations(query)
+    print(f"[INTENT_ANALYZER] Query: \"{expanded}\"")
+
+    # Build history block from recent turns (last 2 exchanges = 4 entries)
+    history_block = ""
+    if session_history:
+        recent = session_history[-4:]
+        lines = []
+        for turn in recent:
+            role = "Người dùng" if turn.get("role") == "user" else "Trợ lý"
+            text = turn.get("text", turn.get("content", ""))[:150]
+            lines.append(f"{role}: {text}")
+        history_block = "Lịch sử hội thoại gần đây:\n" + "\n".join(lines) + "\n\n"
+
+    user_content = f"{history_block}Tin nhắn: {expanded}"
+
+    messages = [
+        {"role": "system", "content": INTENT_ANALYZER_PROMPT},
+        {"role": "user", "content": user_content},
+    ]
+
+    def _call():
+        return _client.chat.completions.create(
+            model=VLLM_MODEL,
+            messages=messages,
+            max_tokens=200,
+            temperature=0.1,
+        )
+
+    try:
+        resp = _call()
+        raw = resp.choices[0].message.content.strip()
+        print(f"[INTENT_ANALYZER] Raw: {raw}")
+        data = _json.loads(raw)
+        action = data.get("action", "proceed")
+        rewritten = data.get("rewritten_query") or expanded
+        clarify_msg = data.get("clarify_message", "")
+        print(f"[INTENT_ANALYZER] action={action} | rewritten=\"{rewritten}\"")
+        return {"action": action, "rewritten_query": rewritten, "clarify_message": clarify_msg}
+
+    except APIConnectionError:
+        print("[INTENT_ANALYZER] Connection error, retrying in 1s...")
+        time.sleep(1)
+        try:
+            resp = _call()
+            raw = resp.choices[0].message.content.strip()
+            data = _json.loads(raw)
+            action = data.get("action", "proceed")
+            rewritten = data.get("rewritten_query") or expanded
+            clarify_msg = data.get("clarify_message", "")
+            print(f"[INTENT_ANALYZER] action={action} (retry) | rewritten=\"{rewritten}\"")
+            return {"action": action, "rewritten_query": rewritten, "clarify_message": clarify_msg}
+        except Exception:
+            pass
+
+    except Exception as e:
+        print(f"[INTENT_ANALYZER] Error: {e}")
+
+    # Fallback: always proceed so the pipeline never gets stuck
+    print("[INTENT_ANALYZER] Fallback → proceed")
+    return {"action": "proceed", "rewritten_query": expanded, "clarify_message": ""}
 
 
 if __name__ == "__main__":

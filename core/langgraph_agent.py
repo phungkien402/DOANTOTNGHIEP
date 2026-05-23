@@ -2,12 +2,12 @@
 LangGraph Agent Orchestrator — uses LLM Orchestrator for routing decisions.
 
 Graph flow:
-  QueryAnalyzer → ToolRouter → FastRetriever → Orchestrator
-                                                    ↓
-                                  action=answer  → FullRetriever → Synthesizer → Generator
-                                  action=clarify → END (return clarify_message)
-                                  action=ticket  → TicketCreator
-              → ChatFallback
+  QueryAnalyzer → IntentAnalyzer → END (action=clarify)
+                                 → FastRetriever → Orchestrator
+                                                       ↓
+                                     action=answer  → FullRetriever → Synthesizer → Generator
+                                     action=ticket  → TicketCreator
+              → ChatFallback (off-topic)
 
 Public API: run(message, session_history) -> Answer
 Same signature as pipeline.py for drop-in replacement.
@@ -32,6 +32,7 @@ from core.tools.search_knowledge import search_knowledge
 from core.knowledge_store import rebuild_index
 from core import generator, confidence, retriever, reranker
 from core.abbreviations import expand_abbreviations
+from core.query_rewriter import analyze_intent_pre_retrieval
 from core.langfuse_tracer import new_trace, log_span, end_trace
 from core.trace_logger import start_trace as tl_start, log_event as tl_event, finish_trace as tl_finish
 
@@ -141,16 +142,61 @@ def node_query_analyzer(state: AgentState) -> dict:
         }
 
 
-def node_tool_router(state: AgentState) -> dict:
-    """Route to the appropriate tool based on intent."""
-    intent = state["intent"]
-    print(f"[AGENT] Node: ToolRouter | intent={intent}")
+def node_intent_analyzer(state: AgentState) -> dict:
+    """
+    Pre-retrieval intent analysis.
+    Understands what the user wants and rewrites the query.
+    If the query is too vague → clarify immediately (before any retrieval).
+    If intent is clear → proceed to FastRetriever.
+    """
+    query = state["query"]
+    session_id = state.get("session_id", "")
+    session_history = state.get("session_history", [])
+    trace_id = state.get("trace_id", "")
+    print(f"[AGENT] Node: IntentAnalyzer | query=\"{query}\"")
 
-    if intent == "create_ticket":
-        return {"tool_called": "ticket_creator"}
+    t_start = time.time()
+    result = analyze_intent_pre_retrieval(query, session_history)
+    elapsed = (time.time() - t_start) * 1000
+
+    action = result["action"]
+    rewritten_query = result.get("rewritten_query") or query
+    clarify_msg = result.get("clarify_message", "")
+
+    tl_event(trace_id, "IntentAnalyzer", "decision", {
+        "action": action,
+        "rewritten_query": rewritten_query,
+        "duration_ms": round(elapsed, 1),
+    }, duration_ms=round(elapsed, 1))
+
+    if action == "clarify":
+        # Guard: max 2 clarifications — force proceed after that
+        if _session_mgr:
+            clarify_count = _session_mgr.get_clarify_count(session_id)
+            if clarify_count >= 2:
+                print(f"[INTENT_ANALYZER] Guard: max clarify reached ({clarify_count}) → proceed")
+                action = "proceed"
+            else:
+                _session_mgr.increment_clarify_count(session_id)
+                _session_mgr.set_awaiting_clarification(session_id, True)
+                print(f"[INTENT_ANALYZER] Clarify #{clarify_count + 1}: \"{clarify_msg}\"")
+
+    if action == "clarify":
+        return {
+            "answer": clarify_msg,
+            "intent": "clarify",
+            "tool_called": "clarifier",
+            "rewritten_query": rewritten_query,
+        }
     else:
-        # Default: fast retrieve for all EHC-related queries
-        return {"tool_called": "fast_retriever"}
+        # Clear awaiting state if we are now proceeding
+        if _session_mgr and _session_mgr.is_awaiting_clarification(session_id):
+            _session_mgr.set_awaiting_clarification(session_id, False)
+        print(f"[INTENT_ANALYZER] Proceed | rewritten=\"{rewritten_query}\"")
+        return {
+            "rewritten_query": rewritten_query,
+            "tool_called": "fast_retriever",
+        }
 
 
 def node_fast_retriever(state: AgentState) -> dict:
@@ -221,20 +267,7 @@ def node_orchestrator(state: AgentState) -> dict:
 
     action = result["action"]
     search_query = result.get("search_query", query)
-    clarify_msg = result.get("clarify_message", "")
     reasoning = result.get("reasoning", "")
-
-    # Guard: nếu session đang awaiting (đã clarify 1 lần) mà orchestrator vẫn muốn clarify lại
-    # → override sang ticket (không có đủ thông tin để trả lời)
-    if action == "clarify" and _session_mgr:
-        clarify_count = _session_mgr.get_clarify_count(session_id)
-        if clarify_count >= 2:
-            print(f"[ORCHESTRATOR] Guard: overriding clarify→ticket (clarify_count={clarify_count})")
-            action = "ticket"
-            result["action"] = "ticket"
-        else:
-            _session_mgr.increment_clarify_count(session_id)
-            print(f"[ORCHESTRATOR] Allowing clarify #{clarify_count + 1}")
 
     elapsed = (time.time() - t_orch_start) * 1000
 
@@ -252,24 +285,12 @@ def node_orchestrator(state: AgentState) -> dict:
         "knowledge_topic": result.get("knowledge_topic", ""),
         "reasoning": reasoning,
         "search_query": search_query,
-        "clarify_message": clarify_msg[:200] if clarify_msg else "",
         "duration_ms": round(elapsed, 1),
     }, duration_ms=round(elapsed, 1))
 
     print(f"[AGENT] Node: Orchestrator | action={action} | search_query=\"{search_query}\"")
 
-    if action == "clarify":
-        # Set flag so next turn bypasses classifier
-        if _session_mgr:
-            _session_mgr.set_awaiting_clarification(session_id, True)
-            _session_mgr.set_fast_chunks(session_id, fast_chunks)
-        return {
-            "answer": clarify_msg,
-            "intent": "clarify",
-            "tool_called": "clarifier",
-            "rewritten_query": search_query,
-        }
-    elif action == "ticket":
+    if action == "ticket":
         # Clear clarification state
         if _session_mgr:
             _session_mgr.set_awaiting_clarification(session_id, False)
@@ -279,7 +300,7 @@ def node_orchestrator(state: AgentState) -> dict:
             "tool_called": "ticket_creator",
             "rewritten_query": search_query,
         }
-    else:  # answer
+    else:  # answer (default)
         # Clear clarification state
         if _session_mgr:
             _session_mgr.set_awaiting_clarification(session_id, False)
@@ -486,55 +507,53 @@ def node_chat_fallback(state: AgentState) -> dict:
 graph = StateGraph(AgentState)
 
 # Add nodes
-graph.add_node("query_analyzer", node_query_analyzer)
-graph.add_node("tool_router", node_tool_router)
-graph.add_node("fast_retriever", node_fast_retriever)
-graph.add_node("orchestrator", node_orchestrator)
-graph.add_node("full_retriever", node_full_retriever)
-graph.add_node("synthesizer", node_synthesizer)
-graph.add_node("generator", node_generator)
-graph.add_node("ticket_creator", node_ticket_creator)
-graph.add_node("chat_fallback", node_chat_fallback)
+graph.add_node("query_analyzer",   node_query_analyzer)
+graph.add_node("intent_analyzer",  node_intent_analyzer)
+graph.add_node("fast_retriever",   node_fast_retriever)
+graph.add_node("orchestrator",     node_orchestrator)
+graph.add_node("full_retriever",   node_full_retriever)
+graph.add_node("synthesizer",      node_synthesizer)
+graph.add_node("generator",        node_generator)
+graph.add_node("ticket_creator",   node_ticket_creator)
+graph.add_node("chat_fallback",    node_chat_fallback)
 
 # Set entry point
 graph.set_entry_point("query_analyzer")
 
-# Conditional edges
+# query_analyzer → chat_fallback (off-topic) or intent_analyzer (EHC-related)
 graph.add_conditional_edges(
     "query_analyzer",
-    lambda s: "chat_fallback" if not s["is_ehc_related"] else "tool_router"
-)
-graph.add_conditional_edges(
-    "tool_router",
-    lambda s: s["tool_called"]  # "fast_retriever" or "ticket_creator"
+    lambda s: "chat_fallback" if not s["is_ehc_related"] else "intent_analyzer"
 )
 
-# Fast retriever always goes to orchestrator
+# intent_analyzer → END (clarify) or fast_retriever (proceed)
+graph.add_conditional_edges(
+    "intent_analyzer",
+    lambda s: END if s.get("intent") == "clarify" else "fast_retriever"
+)
+
+# fast_retriever always goes to orchestrator
 graph.add_edge("fast_retriever", "orchestrator")
 
-# Orchestrator routes based on action
+# orchestrator → full_retriever (answer) or ticket_creator (ticket)
 graph.add_conditional_edges(
     "orchestrator",
-    lambda s: {
-        "search_faq": "full_retriever",
-        "clarify": END,
-        "create_ticket": "ticket_creator",
-    }.get(s["intent"], "full_retriever")
+    lambda s: "ticket_creator" if s["intent"] == "create_ticket" else "full_retriever"
 )
 
-# Full retriever → synthesizer
+# full_retriever → synthesizer
 graph.add_edge("full_retriever", "synthesizer")
 
-# Synthesizer routes: confident → generator, low → ticket
+# synthesizer → generator (confident) or ticket_creator (low confidence)
 graph.add_conditional_edges(
     "synthesizer",
     lambda s: "generator" if s["intent"] == "search_faq" else "ticket_creator"
 )
 
 # Terminal edges
-graph.add_edge("generator", END)
+graph.add_edge("generator",      END)
 graph.add_edge("ticket_creator", END)
-graph.add_edge("chat_fallback", END)
+graph.add_edge("chat_fallback",  END)
 
 # Compile the graph
 app = graph.compile()

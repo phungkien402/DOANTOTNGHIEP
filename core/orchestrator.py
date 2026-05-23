@@ -3,10 +3,9 @@ orchestrator.py — LLM Orchestrator node.
 
 Takes: query + fast_chunks (top 3) + session_history
 Returns: {
-    "action": "answer" | "clarify" | "ticket",
+    "action": "answer" | "ticket",
     "reasoning": str,
     "search_query": str,      # if action=answer: use this for full retrieve
-    "clarify_message": str,   # if action=clarify: send this to user
 }
 
 Replaces: score-spread heuristic, clarification_count routing, Block X node.
@@ -58,13 +57,8 @@ HƯỚNG DẪN QUYẾT ĐỊNH:
    Ví dụ KHÔNG phải chủ thể cụ thể: "không in được", "bị lỗi", "không dùng được", "mình không làm được"
    → search_query = câu truy vấn tối ưu, tiếng Việt, cụ thể, bỏ từ thừa ("mình", "ấy", "nhỉ", "vậy")
 
-2. action = "clarify" — → Before choosing action="answer" for a problem report, check if the query provides
-  at least ONE of: a specific error message, a specific module/screen name, a specific
-  action that triggered the issue, or a specific document type involved.
-  If NONE are present, use action="clarify" regardless of chunk score.
-
-3. action = "ticket" — CHỈ khi đã clarify ít nhất 1 lần mà vẫn không tìm được chunk phù hợp.
-   KHÔNG tạo ticket ngay lần đầu khi chunks không match — hãy dùng action="clarify" để hỏi thêm thông tin.
+2. action = "ticket" — CHỈ khi đã có đủ thông tin về vấn đề nhưng không tìm được chunk phù hợp.
+   KHÔNG tạo ticket nếu câu hỏi vẫn còn mơ hồ — lúc đó IntentAnalyzer đã xử lý rồi.
    Ngoại lệ: nếu query rõ ràng là câu lệnh phá hoại, không liên quan gì đến phần mềm EHC → ticket ngay.
 ---
 CHỌN TOOL TÌM KIẾM (field "tool"):
@@ -90,12 +84,11 @@ Khi nào dùng search_knowledge:
 ---
 TRẢ LỜI THEO ĐỊNH DẠNG JSON (không giải thích thêm):
 {{
-  "action": "answer" | "clarify" | "ticket",
+  "action": "answer" | "ticket",
   "tool": "search_faq" | "search_manual",
   "knowledge_topic": "" | "<stem từ danh sách trên>",
   "reasoning": "lý do ngắn gọn",
-  "search_query": "...",
-  "clarify_message": "..."
+  "search_query": "..."
 }}"""
 
 
@@ -139,7 +132,7 @@ def orchestrate(query: str, fast_chunks: list, session_history: list = None) -> 
     """
     Call the LLM to decide the next action.
 
-    Returns dict with keys: action, reasoning, search_query, clarify_message.
+    Returns dict with keys: action, reasoning, search_query, tool, knowledge_topic.
     Fallback to {"action": "answer", "search_query": query} on any error.
     """
     prompt = ORCHESTRATOR_PROMPT.format(
@@ -194,11 +187,10 @@ def _parse_response(raw: str, query: str) -> dict:
             raise ValueError("No JSON found in response")
         result = json.loads(match.group())
         action = result.get("action", "answer")
-        if action not in ("answer", "clarify", "ticket"):
+        if action not in ("answer", "ticket"):
             action = "answer"
         result["action"] = action
         result.setdefault("search_query", query)
-        result.setdefault("clarify_message", "")
         result.setdefault("reasoning", "")
         result.setdefault("tool", "search_faq")
         result.setdefault("knowledge_topic", "")
@@ -215,7 +207,6 @@ def _fallback_result(query: str) -> dict:
         "action": "answer",
         "reasoning": "orchestrator fallback",
         "search_query": query,
-        "clarify_message": "",
         "tool": "search_faq",
         "knowledge_topic": "",
     }
