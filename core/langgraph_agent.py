@@ -155,7 +155,7 @@ def node_tool_router(state: AgentState) -> dict:
 
 def node_fast_retriever(state: AgentState) -> dict:
     """Fast retrieve top chunks from BOTH collections for orchestrator context."""
-    query = state["query"]
+    query = state.get("rewritten_query") or state["query"]
     session_id = state.get("session_id", "")
     trace_id = state.get("trace_id", "")
     print(f"[AGENT] Node: FastRetriever | query=\"{query}\"")
@@ -348,7 +348,20 @@ def node_full_retriever(state: AgentState) -> dict:
     }, duration_ms=round(elapsed, 1))
 
     print(f"[AGENT] Node: FullRetriever | tool={tool} | top_score={top_score:.4f} | knowledge={'yes' if knowledge_content else 'no'}")
-    return {"chunks": ranked_chunks, "confidence": top_score, "knowledge_content": knowledge_content}
+
+    # Filter: only pass chunks that meet the confidence threshold to the Generator
+    import os
+    filter_threshold = float(os.getenv("CHUNK_FILTER_THRESHOLD", "0.4"))
+    filtered_chunks = [c for c in ranked_chunks if c.score >= filter_threshold]
+
+    # Fallback: if no chunk meets the threshold, keep the best one (prevent empty generator input)
+    if not filtered_chunks and ranked_chunks:
+        filtered_chunks = ranked_chunks[:1]
+        print(f"[FULL_RETRIEVER] No chunk >= {filter_threshold}, keeping top-1 (score={ranked_chunks[0].score:.4f})")
+    else:
+        print(f"[FULL_RETRIEVER] Filtered {len(ranked_chunks)} → {len(filtered_chunks)} chunks (threshold={filter_threshold})")
+
+    return {"chunks": filtered_chunks, "confidence": top_score, "knowledge_content": knowledge_content}
 
 
 def node_synthesizer(state: AgentState) -> dict:

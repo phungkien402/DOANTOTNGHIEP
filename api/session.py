@@ -79,6 +79,7 @@ class SessionManager:
         self._last_active.pop(session_id, None)
         self._awaiting_clarification.pop(session_id, None)
         self._fast_chunks.pop(session_id, None)
+        self._clarify_count.pop(session_id, None)
 
 
 if __name__ == "__main__":

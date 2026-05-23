@@ -7,6 +7,7 @@ Uses the same synchronous OpenAI client pattern as the rest of the codebase.
 """
 
 import json
+import re
 import sys
 import time
 from pathlib import Path
@@ -16,6 +17,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from openai import OpenAI, APIConnectionError
 
 from config import VLLM_BASE_URL, VLLM_MODEL
+
+_DANGEROUS_PATTERNS = re.compile(
+    r'\b(xoá|xóa|xoa|delete|drop|rm\s*-rf|format|wipe|destroy|truncate)\b'
+    r'.{0,40}'
+    r'\b(database|server|data|db|disk|system|table|ổ\s*cứng|máy\s*chủ)\b',
+    re.IGNORECASE | re.UNICODE,
+)
 
 
 def _load_terminology() -> str:
@@ -53,7 +61,11 @@ Thuật ngữ và cách diễn đạt thường gặp trong môi trường bện
 {terminology}
 
 Câu hỏi liên quan (YES) thường về: thao tác nghiệp vụ bệnh viện, quy trình khám chữa bệnh, lỗi phần mềm, hướng dẫn sử dụng tính năng, quản lý bệnh nhân, thuốc, viện phí, báo cáo, cấu hình hệ thống.
-Câu hỏi KHÔNG liên quan (NO): chỉ khi là chào hỏi xã giao thuần túy (hello, xin chào, cảm ơn) hoặc hoàn toàn không liên quan đến bệnh viện/phần mềm.
+Câu hỏi KHÔNG liên quan (NO):
+- Chào hỏi xã giao thuần túy (hello, xin chào, cảm ơn, tạm biệt, ...)
+- Hoàn toàn không liên quan đến bệnh viện hoặc phần mềm EHC (thời tiết, nấu ăn, giải trí, ...)
+- Lệnh phá hoại hạ tầng IT: xoá database, drop table, format disk, rm -rf, destroy server
+- Quản trị hạ tầng không liên quan đến vận hành phần mềm EHC: restart OS server, thay đổi firewall, cài đặt OS
 Khi không chắc chắn, hãy trả lời YES.
 Trả lời CHỈ bằng một từ: YES hoặc NO.
 Câu hỏi: "{query}"
@@ -69,6 +81,11 @@ _FALLBACK_RESPONSE = "Xin chào! Mình là trợ lý hỗ trợ phần mềm EHC
 
 def classify(query: str) -> bool:
     """Return True if query is off-topic (not EHC-related)."""
+    # Pre-filter: block destructive/infrastructure commands without calling LLM
+    if _DANGEROUS_PATTERNS.search(query):
+        print(f"[INTENT_GUARD] Blocked destructive pattern → OFF-TOPIC: \"{query}\"")
+        return True  # off-topic
+
     try:
         prompt = CLASSIFY_PROMPT.format(terminology=_TERMINOLOGY, query=query.strip())
         response = _client.chat.completions.create(
