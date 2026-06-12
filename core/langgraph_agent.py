@@ -62,6 +62,7 @@ class AgentState(TypedDict):
     chunks: list                  # list of RetrievedChunk (after full retrieve + rerank)
     fast_chunks: list             # top 3 chunks from fast retrieve
     confidence: float
+    retry_count: int
     answer: str
     ticket_id: Optional[int]
     user_intent: Optional[str]    # intent description from orchestrator reasoning
@@ -367,11 +368,11 @@ def node_synthesizer(state: AgentState) -> dict:
     })
 
     if is_confident:
-        print(f"[AGENT] Node: Synthesizer | confidence={top_score:.4f} → CONFIDENT")
         return {"confidence": top_score, "intent": "search_faq"}
+    elif state.get("retry_count", 0) == 0:
+        return {"confidence": top_score, "intent": "retry"}   # lần 1: retry
     else:
-        print(f"[AGENT] Node: Synthesizer | confidence={top_score:.4f} → LOW → ticket")
-        return {"confidence": top_score, "intent": "create_ticket"}
+        return {"confidence": top_score, "intent": "create_ticket"}  # lần 2: fallback
 
 
 def node_generator(state: AgentState) -> dict:

@@ -48,8 +48,8 @@ QDRANT_URL = _get("QDRANT_URL", "http://localhost:6333")
 QDRANT_COLLECTION = _get("QDRANT_COLLECTION", "doantn_faq")
 
 # --- RAG settings ---
-RETRIEVER_TOP_K = int(_get("RETRIEVER_TOP_K", "10"))
-RERANKER_TOP_N = int(_get("RERANKER_TOP_N", "3"))
+RETRIEVER_TOP_K = int(_get("RETRIEVER_TOP_K", "5"))
+RERANKER_TOP_N = int(_get("RERANKER_TOP_N", "2"))
 CONFIDENCE_THRESHOLD = float(_get("CONFIDENCE_THRESHOLD", "0.4"))
 
 # --- Clarification heuristic ---
