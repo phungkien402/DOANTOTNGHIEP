@@ -98,6 +98,7 @@ def embed_and_store(docs: list[Document], recreate: bool = False) -> int:
                     "project": doc.project,
                     "url": doc.url,
                     "chunk_text": chunk_text,
+                    "image_urls": doc.image_urls or [], 
                 },
             )
             for doc, embedding, chunk_text in zip(batch_docs, batch_embeddings, batch_texts)

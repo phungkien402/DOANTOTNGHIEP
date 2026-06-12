@@ -137,19 +137,24 @@ def _format_knowledge_topics() -> str:
     return "\n".join(lines)
 
 
-def orchestrate(query: str, fast_chunks: list, session_history: list = None) -> dict:
+def orchestrate(query: str, fast_chunks: list, session_history: list = None, retry_count: int = 0) -> dict:
     """
     Call the LLM to decide the next action.
 
     Returns dict with keys: action, reasoning, search_query, clarify_message.
     Fallback to {"action": "answer", "search_query": query} on any error.
     """
+
+    retry_hint = ""
+    if retry_count > 0:
+        retry_hint = "\nLẦN THỬ LẠI: Lần retrieve trước không đủ tin cậy. Hãy dùng search_query RỘNG HƠN hoặc đổi sang tool khác (search_manual nếu trước dùng search_faq)."
+
     prompt = ORCHESTRATOR_PROMPT.format(
         query=query,
         chunks=_format_chunks(fast_chunks),
         history=_format_history(session_history or []),
         knowledge_topics=_format_knowledge_topics(),
-    )
+    ) + retry_hint
 
     print(f"[ORCHESTRATOR] Query: \"{query}\"")
 

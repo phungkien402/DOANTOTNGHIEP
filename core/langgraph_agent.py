@@ -214,10 +214,12 @@ def node_orchestrator(state: AgentState) -> dict:
     from core.orchestrator import orchestrate
 
     t_orch_start = time.time()
+    retry_count = state.get("retry_count", 0)
     result = orchestrate(
         query=query,
         fast_chunks=fast_chunks,
         session_history=session_history,
+        retry_count=retry_count,
     )
 
     action = result["action"]
@@ -370,9 +372,9 @@ def node_synthesizer(state: AgentState) -> dict:
     if is_confident:
         return {"confidence": top_score, "intent": "search_faq"}
     elif state.get("retry_count", 0) == 0:
-        return {"confidence": top_score, "intent": "retry"}   # lần 1: retry
+        return {"confidence": top_score, "intent": "retry", "retry_count": 1}  # ← increment
     else:
-        return {"confidence": top_score, "intent": "create_ticket"}  # lần 2: fallback
+        return {"confidence": top_score, "intent": "create_ticket"}
 
 
 def node_generator(state: AgentState) -> dict:
@@ -516,7 +518,11 @@ graph.add_edge("full_retriever", "synthesizer")
 # Synthesizer routes: confident → generator, low → ticket
 graph.add_conditional_edges(
     "synthesizer",
-    lambda s: "generator" if s["intent"] == "search_faq" else "ticket_creator"
+    lambda s: {
+        "search_faq": "generator",
+        "retry": "orchestrator",        # ← loop back
+        "create_ticket": "ticket_creator",
+    }.get(s["intent"], "ticket_creator")
 )
 
 # Terminal edges
@@ -565,6 +571,7 @@ def run(message: Message, session_history: list) -> Answer:
         "chunks": [],
         "fast_chunks": [],
         "confidence": 0.0,
+        "retry_count": 0,
         "answer": "",
         "ticket_id": None,
         "user_intent": None,

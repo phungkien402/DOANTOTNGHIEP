@@ -27,6 +27,7 @@ class Document:
     description: str
     project: str
     url: str
+    image_urls: list = None
 
 
 def normalize(text: str) -> str:
@@ -60,6 +61,7 @@ def fetch_all_documents() -> list[Document]:
             "offset": offset,
             "key": REDMINE_API_KEY,
             "status_id": "*",  # all statuses
+            "include": "attachments",
         }
 
         response = httpx.get(
@@ -93,12 +95,20 @@ def fetch_all_documents() -> list[Document]:
             subject = normalize(subject)
             description = normalize(description)
 
+            attachments = issue.get("attachments", [])
+            image_urls = [
+                a["content_url"]
+                for a in attachments
+                if a.get("content_type", "").startswith("image/")
+            ]
+
             doc = Document(
                 issue_id=issue_id,
                 subject=subject,
                 description=description,
                 project=REDMINE_PROJECT,
                 url=f"{REDMINE_URL}/issues/{issue_id}",
+                image_urls=image_urls,
             )
             docs.append(doc)
 
@@ -118,3 +128,4 @@ if __name__ == "__main__":
         print(f"  Subject    : {doc.subject}")
         print(f"  Description: {doc.description[:100]}")
         print(f"  URL        : {doc.url}")
+        print(f"  Image URLs : {doc.image_urls}")

@@ -180,6 +180,14 @@ def process_telegram_query(chat_id: str, text: str, session_id: str, history: li
         reply_text = "⚠️ Hệ thống đang bận, vui lòng thử lại sau."
 
     _send_telegram(chat_id, reply_text)
+
+    if answer_text and confidence >= 0.4:
+    image_urls = []
+        for chunk in answer.source_chunks:
+            image_urls += chunk.metadata.get("image_urls", [])
+        for url in image_urls[:2]:
+            _send_telegram_photo(chat_id, url)
+    
     print(f"[WORKER] Done | chat_id={chat_id} | conf={confidence:.4f}")
 
     # 6. Save session only if we got a real answer
@@ -199,6 +207,8 @@ def process_telegram_query(chat_id: str, text: str, session_id: str, history: li
         print(f"[WORKER] Session saved | awaiting={new_awaiting} | turns={len(session_data['history'])//2}")
 
 
+
+
 def _send_telegram(chat_id: str, text: str):
     """Send a message via Telegram Bot API."""
     try:
@@ -211,6 +221,28 @@ def _send_telegram(chat_id: str, text: str):
             print(f"[WORKER] Telegram send failed: {resp.status_code} {resp.text[:100]}")
     except Exception as e:
         print(f"[WORKER] Telegram send error: {e}")
+
+def _send_telegram_photo(chat_id: str, photo_url: str):
+    """Gửi 1 ảnh qua Telegram Bot API."""
+    try:
+        # Download từ Redmine (internal) — cần API key
+        img_resp = requests.get(
+            photo_url,
+            headers={"X-Redmine-API-Key": os.getenv("REDMINE_API_KEY", "")},
+            timeout=10,
+        )
+        if not img_resp.ok:
+            print(f"[WORKER] Download image failed: {img_resp.status_code}")
+            return
+        # Stream thẳng lên Telegram
+        requests.post(
+            f"{TELEGRAM_API}/sendPhoto",
+            data={"chat_id": chat_id},
+            files={"photo": ("image.jpg", img_resp.content, img_resp.headers.get("content-type", "image/jpeg"))},
+            timeout=15,
+        )
+    except Exception as e:
+        print(f"[WORKER] Telegram photo error: {e}")
 
 def process_slack_query(session_id: str, channel_id: str, text: str, thread_ts: str, history: list):
     """RQ job: run LangGraph agent and send reply to Slack."""
