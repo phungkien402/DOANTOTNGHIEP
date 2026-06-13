@@ -57,6 +57,7 @@ def retrieve(query: str, top_k: int = None) -> list[RetrievedChunk]:
                 "description": r.payload.get("description"),
                 "project": r.payload.get("project"),
                 "url": r.payload.get("url"),
+                "image_urls": r.payload.get("image_urls", []),
             },
         )
         chunks.append(chunk)

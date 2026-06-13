@@ -42,79 +42,71 @@ def normalize(text: str) -> str:
 
 
 def fetch_all_documents() -> list[Document]:
-    """
-    Fetch all FAQ issues from Redmine, paginating through all pages.
-    Skips issues with empty or too-short descriptions.
-    Returns a list of Document objects.
-    """
-    docs: list[Document] = []
+    docs = []
     offset = 0
     limit = 100
     skipped = 0
 
     print(f"[INGESTOR] Fetching from {REDMINE_URL}/issues.json (project={REDMINE_PROJECT})")
 
-    while True:
-        params = {
-            "project_id": REDMINE_PROJECT,
-            "limit": limit,
-            "offset": offset,
-            "key": REDMINE_API_KEY,
-            "status_id": "*",  # all statuses
-            "include": "attachments",
-        }
+    with httpx.Client() as client:  # ← dùng 1 client cho cả list + attachment requests
+        while True:
+            params = {
+                "project_id": REDMINE_PROJECT,
+                "limit": limit,
+                "offset": offset,
+                "key": REDMINE_API_KEY,
+                "status_id": "*",
+            }
+            response = client.get(f"{REDMINE_URL}/issues.json", params=params, timeout=30.0)
+            response.raise_for_status()
+            issues = response.json().get("issues", [])
+            if not issues:
+                break
 
-        response = httpx.get(
-            f"{REDMINE_URL}/issues.json",
-            params=params,
-            timeout=30.0,
-        )
-        response.raise_for_status()
-        data = response.json()
-        issues = data.get("issues", [])
+            for issue in issues:
+                issue_id = issue["id"]
+                subject = issue.get("subject", "").strip()
+                description = issue.get("description", "").strip()
 
-        if not issues:
-            break
+                if not description or len(description) < 20:
+                    skipped += 1
+                    continue
 
-        page_num = (offset // limit) + 1
-        print(f"[INGESTOR] Page {page_num}: fetched {len(issues)} issues (offset={offset})")
+                subject = normalize(subject)
+                description = normalize(description)
 
-        for issue in issues:
-            issue_id = issue["id"]
-            subject = issue.get("subject", "").strip()
-            description = issue.get("description", "").strip()
+                # Fetch attachments riêng nếu có
+                image_urls = []
+                try:
+                    r = client.get(
+                        f"{REDMINE_URL}/issues/{issue_id}.json",
+                        params={"key": REDMINE_API_KEY, "include": "attachments"},
+                        timeout=10.0,
+                    )
+                    attachments = r.json().get("issue", {}).get("attachments", [])
+                    image_urls = [
+                        a["content_url"] for a in attachments
+                        if a.get("content_type", "").startswith("image/")
+                    ]
+                    if image_urls:
+                        print(f"  [IMAGE] id={issue_id} → {len(image_urls)} ảnh")
+                except Exception as e:
+                    print(f"  [WARN] id={issue_id} attachments failed: {e}")
+                    image_urls = []
 
-            # Skip condition: empty or too short description
-            if not description or len(description) < 20:
-                reason = "empty description" if not description else f"too short ({len(description)} chars)"
-                print(f"  [SKIP] id={issue_id} subject=\"{subject[:50]}\" reason=\"{reason}\"")
-                skipped += 1
-                continue
+                docs.append(Document(
+                    issue_id=issue_id,
+                    subject=subject,
+                    description=description,
+                    project=REDMINE_PROJECT,
+                    url=f"{REDMINE_URL}/issues/{issue_id}",
+                    image_urls=image_urls,
+                ))
 
-            # Normalize text
-            subject = normalize(subject)
-            description = normalize(description)
+            offset += limit
 
-            attachments = issue.get("attachments", [])
-            image_urls = [
-                a["content_url"]
-                for a in attachments
-                if a.get("content_type", "").startswith("image/")
-            ]
-
-            doc = Document(
-                issue_id=issue_id,
-                subject=subject,
-                description=description,
-                project=REDMINE_PROJECT,
-                url=f"{REDMINE_URL}/issues/{issue_id}",
-                image_urls=image_urls,
-            )
-            docs.append(doc)
-
-        offset += limit
-
-    print(f"\n[INGESTOR] Done. Total usable: {len(docs)}, Skipped: {skipped}")
+    print(f"\n[INGESTOR] Done. Total: {len(docs)}, Skipped: {skipped}")
     return docs
 
 

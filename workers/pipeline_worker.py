@@ -181,10 +181,8 @@ def process_telegram_query(chat_id: str, text: str, session_id: str, history: li
 
     _send_telegram(chat_id, reply_text)
 
-    if answer_text and confidence >= 0.4:
-    image_urls = []
-        for chunk in answer.source_chunks:
-            image_urls += chunk.metadata.get("image_urls", [])
+    if answer_text and confidence >= 0.4 and answer.source_chunks:
+        image_urls = answer.source_chunks[0].metadata.get("image_urls", [])
         for url in image_urls[:2]:
             _send_telegram_photo(chat_id, url)
     
