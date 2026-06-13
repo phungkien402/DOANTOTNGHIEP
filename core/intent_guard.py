@@ -67,6 +67,7 @@ Trả lời NO chỉ khi câu hỏi RÕ RÀNG không liên quan:
 - Lệnh phá hoại hạ tầng (xoá database, format disk, drop table)
 
 Trả lời CHỈ bằng một từ: YES hoặc NO.
+{history_context}
 Câu hỏi: "{query}"
 """
 
@@ -77,10 +78,21 @@ KHÔNG được trả lời nội dung câu hỏi. PHẢI trả lời bằng ti�
 _FALLBACK_RESPONSE = "Xin chào! Mình là trợ lý hỗ trợ phần mềm EHC. Bạn có câu hỏi gì về phần mềm không?"
 
 
-def classify(query: str) -> bool:
-    """Return True if query is off-topic (not EHC-related)."""
-    try:
-        prompt = CLASSIFY_PROMPT.format(terminology=_TERMINOLOGY, query=query.strip())
+def classify(query: str, history: list = None) -> bool:
+    history_context = ""
+    if history:
+        last = history[-4:]  # 2 turns = 4 messages
+        lines = []
+        for h in last:
+            role = "User" if h["role"] == "user" else "Bot"
+            lines.append(f"{role}: {h['text'][:150]}")
+        history_context = "Lịch sử hội thoại gần nhất:\n" + "\n".join(lines) + "\n"
+    
+    prompt = CLASSIFY_PROMPT.format(
+        terminology=_TERMINOLOGY,
+        history_context=history_context,
+        query=query.strip()
+    )
         response = _client.chat.completions.create(
             model=VLLM_MODEL,
             messages=[{"role": "user", "content": prompt}],

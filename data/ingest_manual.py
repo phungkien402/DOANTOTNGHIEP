@@ -44,7 +44,7 @@ def _chunk_markdown(filepath: Path) -> list[dict]:
         if not body or len(body) < 20:
             continue
 
-        chunk_text = f"Tiêu đề: {title}\nNội dung: {body[:500]}"
+        chunk_text = f"Tiêu đề: {title}\nNội dung: {body}"
         chunks.append({
             "source": source,
             "subject": title,
@@ -107,7 +107,7 @@ def ingest_manuals() -> int:
                 "chunk_id": i + 1,
                 "source": chunk["source"],
                 "subject": chunk["subject"],
-                "description": chunk["body"][:300],
+                "description": chunk["body"],
                 "chunk_text": chunk["chunk_text"],
             },
         )

@@ -120,7 +120,8 @@ def node_query_analyzer(state: AgentState) -> dict:
             "intent": "search_faq",
         }
 
-    is_off_topic = classify(query)
+    is_off_topic = classify(query, session_history)
+
     elapsed = (time.time() - t_start) * 1000
 
     is_ehc = not is_off_topic
