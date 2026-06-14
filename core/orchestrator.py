@@ -42,7 +42,7 @@ LỊCH SỬ HỘI THOẠI:
 CÂU HỎI HIỆN TẠI: {query}
 
 ---
-3 ĐOẠN FAQ TÌM ĐƯỢC (theo thứ tự liên quan):
+3 ĐOẠN TÌM ĐƯỢC (theo thứ tự liên quan):
 {chunks}
 
 ---
@@ -50,44 +50,45 @@ CÁC FILE HƯỚNG DẪN NGHIỆP VỤ ĐANG CÓ:
 {knowledge_topics}
 
 ---
-HƯỚNG DẪN QUYẾT ĐỊNH:
+HƯỚNG DẪN QUYẾT ĐỊNH (theo thứ tự ưu tiên):
 
-1. action = "answer" — khi user đề cập rõ chủ thể cụ thể VÀ chunk #1 chứa đúng chủ thể đó.
-   Ví dụ chủ thể cụ thể: "bảng kê", "tài liệu chưa ký", "bệnh án", "phiếu thu", "phiếu khám",
-   "giấy ra viện", "bảng kê 6556", "phiếu chỉ định", v.v.
-   Ví dụ KHÔNG phải chủ thể cụ thể: "không in được", "bị lỗi", "không dùng được", "mình không làm được"
-   → search_query = câu truy vấn tối ưu, tiếng Việt, cụ thể, bỏ từ thừa ("mình", "ấy", "nhỉ", "vậy")
+1. [ƯU TIÊN CAO NHẤT] Kiểm tra lịch sử trước:
+   Nếu lịch sử KHÔNG rỗng → đã xác lập chủ thể rồi → action=answer, TUYỆT ĐỐI KHÔNG clarify.
+   Câu hỏi hiện tại chỉ là follow-up. Dùng search_query = chủ thể từ lịch sử + nội dung câu hỏi mới.
+   Ví dụ: lịch sử có "Minipacs" + câu hỏi "cần chuẩn bị gì" → search_query = "cần chuẩn bị gì để kết nối Minipacs"
 
-2. action = "clarify" — khi query không đề cập chủ thể cụ thể VÀ nhiều chunk có thể phù hợp.
+2. action = "clarify" — CHỈ khi lịch sử RỖNG VÀ query không đề cập chủ thể cụ thể VÀ nhiều chunk có thể phù hợp.
    → clarify_message = liệt kê các trường hợp từ chunks theo danh sách đánh số.
      Kết thúc bằng: "Nếu không có trường hợp nào phù hợp, bạn có thể mô tả chi tiết vấn đề bằng lời của mình."
-   → KHÔNG clarify nếu lịch sử cho thấy đã hỏi lại 1 lần → dùng action="answer" hoặc "ticket"
-   → NẾU query chứa " — " ở giữa (ví dụ: "câu hỏi gốc — câu trả lời của user"), đây là follow-up
-     sau clarification. TUYỆT ĐỐI KHÔNG action="clarify". Chỉ được "answer" hoặc "ticket".
+   → Nếu query chứa " — " ở giữa → đây là follow-up sau clarification. TUYỆT ĐỐI KHÔNG clarify. Chỉ được "answer" hoặc "ticket".
 
-3. action = "ticket" — CHỈ khi đã clarify ít nhất 1 lần mà vẫn không tìm được chunk phù hợp.
-   KHÔNG tạo ticket ngay lần đầu khi chunks không match — hãy dùng action="clarify" để hỏi thêm thông tin.
-   Ngoại lệ: nếu query rõ ràng là câu lệnh phá hoại, không liên quan gì đến phần mềm EHC → ticket ngay.
+3. action = "answer" — khi lịch sử rỗng nhưng query đề cập rõ chủ thể cụ thể.
+   Ví dụ chủ thể cụ thể: "bảng kê", "tài liệu chưa ký", "bệnh án", "phiếu thu", "phiếu khám",
+   "giấy ra viện", "bảng kê 6556", "phiếu chỉ định", tên phần mềm cụ thể, v.v.
+   → search_query = câu truy vấn tối ưu, tiếng Việt, cụ thể, bỏ từ thừa ("mình", "ấy", "nhỉ", "vậy")
+
+4. action = "ticket" — CHỈ khi đã clarify ít nhất 1 lần mà vẫn không tìm được chunk phù hợp.
+   KHÔNG tạo ticket ngay lần đầu khi chunks không match — hãy dùng action="clarify" để hỏi thêm.
+   Ngoại lệ: query rõ ràng không liên quan gì đến phần mềm EHC → ticket ngay.
+
 ---
 CHỌN TOOL TÌM KIẾM (field "tool"):
 - "search_manual" — khi:
   * Chunk #1 hoặc #2 có source chứa "hdsd" VÀ score > 0.5 → LUÔN chọn search_manual.
   * User hỏi CÁCH SỬ DỤNG một chức năng: cài đặt, cấu hình, hướng dẫn từng bước, quy trình.
-  Ví dụ: "cách cài đặt...", "hướng dẫn kết nối...", "làm thế nào để...", "thao tác...", "các bước để...", "quy trình..."
+  * Lịch sử đang thảo luận về HDSD/hướng dẫn sử dụng.
+  Ví dụ: "cách cài đặt...", "hướng dẫn kết nối...", "làm thế nào để...", "thao tác...", "các bước để..."
 - "search_faq" — khi:
   * Các chunk đầu có source="faq" chiếm ưu thế, HOẶC
   * User báo lỗi, hỏi tại sao, hoặc gặp vấn đề không hoạt động.
-  Ví dụ: "không in được", "bị lỗi", "tại sao không...", "không đăng nhập được", "bấm không được"
-- QUAN TRỌNG: Nếu chunk #1 hoặc #2 có source chứa "hdsd" và score > 0.5, luôn chọn "search_manual".
+  Ví dụ: "không in được", "bị lỗi", "tại sao không...", "không đăng nhập được"
 - Mặc định: "search_faq" khi không chắc chắn.
 
 ---
 CÔNG CỤ HỖ TRỢ NGỮ CẢNH NGHIỆP VỤ (field "knowledge_topic"):
-Khi nào dùng search_knowledge:
-1. Trước tiên, đọc fast_chunks đã truy xuất được.
-2. Nếu fast_chunks đã giải thích được nguyên nhân gốc (root cause) của vấn đề → KHÔNG cần gọi search_knowledge, để knowledge_topic = "".
-3. Chỉ đặt knowledge_topic khi fast_chunks cho thấy vấn đề thuộc một lĩnh vực nghiệp vụ cụ thể (in ấn, mạng, thuốc, xuất viện...) VÀ người dùng cần hướng dẫn thao tác chi tiết hơn những gì chunks cung cấp.
-4. Nếu chưa chắc chắn topic nào phù hợp → để knowledge_topic = "".
+1. Nếu fast_chunks đã giải thích được nguyên nhân gốc → KHÔNG cần, để knowledge_topic = "".
+2. Chỉ đặt knowledge_topic khi chunks cho thấy vấn đề thuộc lĩnh vực nghiệp vụ cụ thể VÀ user cần hướng dẫn chi tiết hơn.
+3. Nếu chưa chắc chắn topic nào phù hợp → để knowledge_topic = "".
 
 ---
 TRẢ LỜI THEO ĐỊNH DẠNG JSON (không giải thích thêm):
@@ -189,11 +190,10 @@ def orchestrate(query: str, fast_chunks: list, session_history: list = None, ret
 
     print(f"[ORCHESTRATOR] Raw output: {raw[:200]}")
 
-    # Parse JSON — extract from markdown code block if wrapped
-    return _parse_response(raw, query)
+    return _parse_response(raw, query, session_history or [], fast_chunks)
 
 
-def _parse_response(raw: str, query: str) -> dict:
+def _parse_response(raw: str, query: str, session_history: list = None, fast_chunks: list = None) -> dict:
     """Parse the LLM JSON response into a structured dict."""
     try:
         match = re.search(r'\{.*\}', raw, re.DOTALL)
@@ -203,8 +203,27 @@ def _parse_response(raw: str, query: str) -> dict:
         action = result.get("action", "answer")
         if action not in ("answer", "clarify", "ticket"):
             action = "answer"
+
+        # Safety override: nếu có lịch sử mà LLM vẫn trả clarify → force answer
+        if action == "clarify" and session_history:
+            print("[ORCHESTRATOR] Override: có lịch sử nhưng LLM trả clarify → đổi thành answer")
+            action = "answer"
+            # Đảm bảo search_query không rỗng khi override
+            if not result.get("search_query"):
+                result["search_query"] = query
+            # Nếu fast_chunks có hdsd source → dùng search_manual (FAQ không có nội dung HDSD)
+            if fast_chunks and result.get("tool", "search_faq") == "search_faq":
+                has_hdsd = any(
+                    getattr(c, "metadata", {}).get("source", "").startswith("hdsd")
+                    for c in fast_chunks
+                )
+                if has_hdsd:
+                    print("[ORCHESTRATOR] Override tool: hdsd chunk in fast_chunks + history → search_manual")
+                    result["tool"] = "search_manual"
+
         result["action"] = action
-        result.setdefault("search_query", query)
+        # Dùng 'or' thay setdefault để fallback khi LLM trả "" thay vì bỏ key
+        result["search_query"] = result.get("search_query") or query
         result.setdefault("clarify_message", "")
         result.setdefault("reasoning", "")
         result.setdefault("tool", "search_faq")
@@ -233,10 +252,10 @@ if __name__ == "__main__":
 
     # Simulate a RetrievedChunk-like object for testing
     class FakeChunk:
-        def __init__(self, text, subject):
+        def __init__(self, text, subject, source="faq", score=0.5):
             self.text = text
-            self.metadata = {"subject": subject}
-            self.score = 0.5
+            self.metadata = {"subject": subject, "source": source}
+            self.score = score
 
     fake_chunks = [
         FakeChunk("Lỗi in phiếu thu...", "Lỗi in phiếu thu không hiển thị"),
@@ -262,6 +281,19 @@ if __name__ == "__main__":
         {"role": "user", "text": "1"},
     ]
     result = orchestrate("1", fake_chunks, history)
+    print(f"Result: {json.dumps(result, ensure_ascii=False, indent=2)}\n")
+
+    # Test 4: follow-up with HDSD history
+    print("--- Test 4: Follow-up with Minipacs history ---")
+    minipacs_history = [
+        {"role": "user", "text": "cách kết nối minipacs"},
+        {"role": "bot", "text": "Để kết nối Minipacs, vào module PACS Server..."},
+    ]
+    minipacs_chunks = [
+        FakeChunk("Những nội dung cần chuẩn bị...", "Những nội dung cần chuẩn bị", source="hdsd_minipacs", score=0.29),
+        FakeChunk("Dự trù vật tư...", "Làm thế nào để dự trù vật tư", source="faq", score=0.36),
+    ]
+    result = orchestrate("cần chuẩn bị gì không", minipacs_chunks, minipacs_history)
     print(f"Result: {json.dumps(result, ensure_ascii=False, indent=2)}\n")
 
     print("✓ Orchestrator tests completed.")

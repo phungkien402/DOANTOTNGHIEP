@@ -48,28 +48,21 @@ CLASSIFY_PROMPT = """Bạn là bộ lọc câu hỏi cho hệ thống hỗ trợ
 Người dùng là nhân viên bệnh viện (bác sĩ, điều dưỡng, dược sĩ, nhân viên đón tiếp, thu ngân).
 Họ đang chat với bot hỗ trợ phần mềm EHC — đây là ngữ cảnh mặc định của MỌI câu hỏi.
 
-Vì vậy, người dùng thường KHÔNG đề cập tên phần mềm hay module cụ thể.
-Họ hỏi ngắn gọn, dùng jargon nội bộ, ví dụ:
-  "sai giá", "không in được", "bị âm kho", "không tìm thấy bệnh nhân"
+Mặc định trả lời YES. Chỉ trả lời NO khi câu hỏi RÕ RÀNG thuộc một trong các loại sau:
+- Chào hỏi xã giao thuần túy, không có nội dung (ví dụ: "hello", "hi bạn", "bye")
+- Chủ đề hoàn toàn ngoài phạm vi bệnh viện và phần mềm: thời tiết, thể thao, giải trí, âm nhạc, phim ảnh, tin tức chính trị
+- Kiến thức phổ thông không liên quan công việc: toán học, lịch sử, địa lý, nấu ăn, du lịch...
+- Lệnh phá hoại hạ tầng: xoá database, format disk, drop table, rm -rf...
 
-Thuật ngữ nghiệp vụ thường gặp:
-{terminology}
+Mọi thứ còn lại → YES, kể cả khi:
+- Không nhắc đến tên phần mềm EHC
+- Câu ngắn, mơ hồ, dùng jargon bệnh viện
+- Hỏi về quy trình, nghiệp vụ, thao tác bất kỳ liên quan vận hành bệnh viện
+- Nghi ngờ → YES
 
-Trả lời YES nếu câu hỏi có thể là nghiệp vụ nội bộ bệnh viện, bao gồm:
-- Thao tác phần mềm, lỗi hệ thống, hướng dẫn quy trình
-- Câu hỏi về bệnh nhân, thuốc, viện phí, xét nghiệm, BHYT, in phiếu
-- Câu ngắn, mơ hồ nhưng nghe có vẻ liên quan đến vận hành bệnh viện
-- Khi KHÔNG CHẮC → YES (ưu tiên recall)
+{history_context}Câu hỏi: "{query}"
 
-Trả lời NO chỉ khi câu hỏi RÕ RÀNG không liên quan:
-- Chào hỏi xã giao thuần túy (hello, cảm ơn, tạm biệt)
-- Chủ đề hoàn toàn ngoài y tế / phần mềm (thời tiết, giải trí, tin tức)
-- Lệnh phá hoại hạ tầng (xoá database, format disk, drop table)
-
-Trả lời CHỈ bằng một từ: YES hoặc NO.
-{history_context}
-Câu hỏi: "{query}"
-"""
+Trả lời CHỈ bằng một từ: YES hoặc NO."""
 
 CHAT_SYSTEM_PROMPT = """Bạn là trợ lý phần mềm EHC. Luôn trả lời bằng tiếng Việt.
 Câu hỏi này nằm ngoài phạm vi hỗ trợ. Trả lời đúng 1 câu ngắn, lịch sự, từ chối và nhắc bạn chỉ hỗ trợ phần mềm EHC.
@@ -81,18 +74,17 @@ _FALLBACK_RESPONSE = "Xin chào! Mình là trợ lý hỗ trợ phần mềm EHC
 def classify(query: str, history: list = None) -> bool:
     history_context = ""
     if history:
-        last = history[-4:]  # 2 turns = 4 messages
+        last = history[-4:]
         lines = []
         for h in last:
             role = "User" if h["role"] == "user" else "Bot"
             lines.append(f"{role}: {h['text'][:150]}")
         history_context = "Lịch sử hội thoại gần nhất:\n" + "\n".join(lines) + "\n"
-    
-    prompt = CLASSIFY_PROMPT.format(
-        terminology=_TERMINOLOGY,
-        history_context=history_context,
-        query=query.strip()
-    )
+    try:                          # ← dòng này đang bị thiếu
+        prompt = CLASSIFY_PROMPT.format(
+            history_context=history_context,
+            query=query.strip()
+        )
         response = _client.chat.completions.create(
             model=VLLM_MODEL,
             messages=[{"role": "user", "content": prompt}],
@@ -108,7 +100,7 @@ def classify(query: str, history: list = None) -> bool:
         print("[INTENT_GUARD] Classifier connection error, retrying in 1s...")
         time.sleep(1)
         try:
-            prompt = CLASSIFY_PROMPT.format(terminology=_TERMINOLOGY, query=query.strip())
+            prompt = CLASSIFY_PROMPT.format(history_context=history_context, query=query.strip())
             response = _client.chat.completions.create(
                 model=VLLM_MODEL,
                 messages=[{"role": "user", "content": prompt}],

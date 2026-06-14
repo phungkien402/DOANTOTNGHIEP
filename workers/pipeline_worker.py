@@ -212,7 +212,7 @@ def _send_telegram(chat_id: str, text: str):
     try:
         resp = requests.post(
             f"{TELEGRAM_API}/sendMessage",
-            json={"chat_id": chat_id, "text": text, "parse_mode": "Markdown"},
+            json={"chat_id": chat_id, "text": text},
             timeout=10,
         )
         if not resp.ok:

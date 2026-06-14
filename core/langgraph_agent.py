@@ -119,7 +119,7 @@ def node_query_analyzer(state: AgentState) -> dict:
             "is_ehc_related": True,
             "intent": "search_faq",
         }
-
+    session_history = state.get("session_history", [])
     is_off_topic = classify(query, session_history)
 
     elapsed = (time.time() - t_start) * 1000
@@ -204,7 +204,7 @@ def node_fast_retriever(state: AgentState) -> dict:
 
 def node_orchestrator(state: AgentState) -> dict:
     """LLM Orchestrator — decides action based on query + fast_chunks + history."""
-    query = state["query"]
+    query = state.get("rewritten_query") or state["query"]
     fast_chunks = state.get("fast_chunks", [])
     session_history = state.get("session_history", [])
     session_id = state.get("session_id", "")
